@@ -24,7 +24,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 		"./ui/html/partials/nav.tmpl",
 	}
 
-	// Use the template.ParseFiles() func to template file into a templat set. If there is an error
+	// Use the template.ParseFiles() func to template file into a template set. If there is an error
 	// we log the detailed error message and use the http.Error() func to send a generic 500 status
 	ts, err := template.ParseFiles(files...)
 	if err != nil {
