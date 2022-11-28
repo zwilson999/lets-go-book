@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<meta name="author" content="Alex Edwards">
+		<meta name="copyright" content="Copyright Alex Edwards 2022">
+		<title>URL query strings &mdash; Let's Go</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link rel="stylesheet" type="text/css" href="assets/css/main.css">
+	</head>
+	<body>
+		<header>
+			<div class="wrapper">
+				<div>
+					
+						
+						<a href="00.00-front-matter.html">Let's Go</a> <span class="crumbs">&rsaquo; <a href="02.00-foundations.html">Foundations</a> &rsaquo; URL query strings</span>
+						
+					
+				</div>
+				<div>
+					&lsaquo; <a href="02.04-customizing-http-headers.html">Previous</a>
+					&middot; <a href="00.01-contents.html">Contents</a> &middot;
+					<a href="02.06-project-structure-and-organization.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</header>
+		<main class="wrapper text">
+			<div class="chapter">Chapter 2.5.</div>
+			<h2 id="url-query-strings">URL query strings</h2>
+
+<p>While we&rsquo;re on the subject of routing, let&rsquo;s update the <code>snippetView</code> handler so that it accepts an <code>id</code> query string parameter from the user like so:</p>
+
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Pattern</th>
+<th>Handler</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>ANY</td>
+<td>/</td>
+<td>home</td>
+<td>Display the home page</td>
+</tr>
+
+<tr>
+<td>ANY</td>
+<td>/snippet/view?id=1</td>
+<td>snippetView</td>
+<td>Display a specific snippet</td>
+</tr>
+
+<tr>
+<td>POST</td>
+<td>/snippet/create</td>
+<td>snippetCreate</td>
+<td>Create a new snippet</td>
+</tr>
+</tbody>
+</table>
+<p>Later we&rsquo;ll use this <code>id</code> parameter to select a specific snippet from a database and show it to the user. But for now, we&rsquo;ll just read the value of the <code>id</code> parameter and interpolate it with a placeholder response.</p>
+
+<p>To make this work we&rsquo;ll need to update the <code>snippetView</code> handler function to do two things:</p>
+
+<ol>
+<li><p>It needs to retrieve the value of the <code>id</code> parameter from the URL query string, which we can do using the <code>r.URL.Query().Get()</code> method. This will always return a string value for a parameter, or the empty string <code>&quot;&quot;</code> if no matching parameter exists.</p></li>
+
+<li><p>Because the <code>id</code> parameter is untrusted user input, we should validate it to make sure it&rsquo;s sane and sensible. For the purpose of our Snippetbox application, we want to check that it contains a positive integer value. We can do this by trying to convert the string value to an integer with the <a href="https://pkg.go.dev/strconv/#Atoi"><code>strconv.Atoi()</code></a> function, and then checking the value is greater than zero.</p></li>
+</ol>
+
+<p>Here&rsquo;s how:</p>
+
+<figure class="code go">
+<figcaption>File: main.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;fmt&#34;</span> <span class="c1">// New import
+</span><span class="c1"></span>    <span class="s">&#34;log&#34;</span>
+    <span class="s">&#34;net/http&#34;</span>
+    <span class="s">&#34;strconv&#34;</span> <span class="c1">// New import
+</span><span class="c1"></span><span class="p">)</span>
+
+<span class="o">...</span>
+
+<span class="kd">func</span> <span class="nf">snippetView</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// Extract the value of the id parameter from the query string and try to
+</span><span class="c1"></span>    <span class="c1">// convert it to an integer using the strconv.Atoi() function. If it can&#39;t
+</span><span class="c1"></span>    <span class="c1">// be converted to an integer, or the value is less than 1, we return a 404 page
+</span><span class="c1"></span>    <span class="c1">// not found response.
+</span><span class="c1"></span>    <span class="nx">id</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">strconv</span><span class="p">.</span><span class="nf">Atoi</span><span class="p">(</span><span class="nx">r</span><span class="p">.</span><span class="nx">URL</span><span class="p">.</span><span class="nf">Query</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="s">&#34;id&#34;</span><span class="p">)</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">||</span> <span class="nx">id</span> <span class="p">&lt;</span> <span class="mi">1</span> <span class="p">{</span>
+        <span class="nx">http</span><span class="p">.</span><span class="nf">NotFound</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">r</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Use the fmt.Fprintf() function to interpolate the id value with our response
+</span><span class="c1"></span>    <span class="c1">// and write it to the http.ResponseWriter.
+</span><span class="c1"></span>    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Fprintf</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="s">&#34;Display a specific snippet with ID %d...&#34;</span><span class="p">,</span> <span class="nx">id</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="o">...</span></pre>
+</figure>
+
+<p>Let&rsquo;s try this out.</p>
+
+<p>Restart the application, and try visiting a URL like <a href="http://localhost:4000/snippet/view?id=123"><code>http://localhost:4000/snippet/view?id=123</code></a>. You should see a response which looks like this:</p>
+
+<figure class="img">
+<img src="assets/img/02.05-01.png" alt="02.05-01.png" />
+</figure>
+
+<p>You might also like to try visiting some URLs which have invalid values for the <code>id</code> parameter, or no parameter at all. For instance:</p>
+
+<ul>
+<li><a href="http://localhost:4000/snippet/view"><code>http://localhost:4000/snippet/view</code></a></li>
+<li><a href="http://localhost:4000/snippet/view?id=-1"><code>http://localhost:4000/snippet/view?id=-1</code></a></li>
+<li><a href="http://localhost:4000/snippet/view?id=foo"><code>http://localhost:4000/snippet/view?id=foo</code></a></li>
+</ul>
+
+<p>For all these requests you should get a <code>404 page not found</code> response.</p>
+
+<h3 id="the-io-writer-interface">The io.writer interface</h3>
+
+<p>The code above introduced another new thing behind-the-scenes. If you take a look at the documentation for the <a href="https://pkg.go.dev/fmt/#Fprintf"><code>fmt.Fprintf()</code></a> function you&rsquo;ll notice that it takes an <a href="https://pkg.go.dev/io/#Writer"><code>io.Writer</code></a> as the first parameter&hellip;</p>
+
+<figure class="code go">
+<pre><span class="kd">func</span> <span class="nf">Fprintf</span><span class="p">(</span><span class="nx">w</span> <span class="nx">io</span><span class="p">.</span><span class="nx">Writer</span><span class="p">,</span> <span class="nx">format</span> <span class="kt">string</span><span class="p">,</span> <span class="nx">a</span> <span class="o">...</span><span class="nx">any</span><span class="p">)</span> <span class="p">(</span><span class="nx">n</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span></pre>
+</figure>
+
+<p>&hellip;but we passed it our <code>http.ResponseWriter</code> object instead &mdash; and it worked fine.</p>
+
+<p>We&rsquo;re able to do this because the <code>io.Writer</code> type is an <dfn>interface</dfn>, and the <code>http.ResponseWriter</code> object <em>satisfies the interface</em> because it has a <code>w.Write()</code> method.</p>
+
+<p>If you&rsquo;re new to Go, then the <a href="https://www.alexedwards.net/blog/interfaces-explained">concept of interfaces</a> can be a bit confusing and I don&rsquo;t want to get too hung up on it right now. It&rsquo;s enough to know that &mdash; in practice &mdash; anywhere you see an <code>io.Writer</code> parameter it&rsquo;s OK to pass in your <code>http.ResponseWriter</code> object. Whatever is being written will subsequently be sent as the body of the HTTP response.</p>
+
+			
+		</main>
+		<footer>
+			<div class="wrapper">
+				<div>
+					&lsaquo; <a href="02.04-customizing-http-headers.html">Previous</a>
+				</div>
+				<div>
+					<a href="00.01-contents.html">Contents</a>
+				</div>
+				<div>
+					<a href="02.06-project-structure-and-organization.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</footer>
+	</body>
+</html>

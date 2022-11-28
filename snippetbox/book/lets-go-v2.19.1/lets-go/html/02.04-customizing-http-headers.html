@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<meta name="author" content="Alex Edwards">
+		<meta name="copyright" content="Copyright Alex Edwards 2022">
+		<title>Customizing HTTP headers &mdash; Let's Go</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link rel="stylesheet" type="text/css" href="assets/css/main.css">
+	</head>
+	<body>
+		<header>
+			<div class="wrapper">
+				<div>
+					
+						
+						<a href="00.00-front-matter.html">Let's Go</a> <span class="crumbs">&rsaquo; <a href="02.00-foundations.html">Foundations</a> &rsaquo; Customizing HTTP headers</span>
+						
+					
+				</div>
+				<div>
+					&lsaquo; <a href="02.03-routing-requests.html">Previous</a>
+					&middot; <a href="00.01-contents.html">Contents</a> &middot;
+					<a href="02.05-url-query-strings.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</header>
+		<main class="wrapper text">
+			<div class="chapter">Chapter 2.4.</div>
+			<h2 id="customizing-http-headers">Customizing HTTP headers</h2>
+
+<p>Let&rsquo;s now update our application so that the <code>/snippet/create</code> route only responds to HTTP requests which use the <code>POST</code> method, like so:</p>
+
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Pattern</th>
+<th>Handler</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>ANY</td>
+<td>/</td>
+<td>home</td>
+<td>Display the home page</td>
+</tr>
+
+<tr>
+<td>ANY</td>
+<td>/snippet/view</td>
+<td>snippetView</td>
+<td>Display a specific snippet</td>
+</tr>
+
+<tr>
+<td>POST</td>
+<td>/snippet/create</td>
+<td>snippetCreate</td>
+<td>Create a new snippet</td>
+</tr>
+</tbody>
+</table>
+<p>Making this change is important because &mdash; later in our application build &mdash; requests to the <code>/snippet/create</code> route will result in a new snippet being created in a database. Creating a new snippet in a database is a non-idempotent action that changes the state of our server, so we should follow <a href="https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol#Request_methods">HTTP good practice</a> and restrict this route to act on <code>POST</code> requests only.</p>
+
+<p>But the main reason I want to cover this now is because it&rsquo;s a good excuse to talk about HTTP response headers and explain how to customize them.</p>
+
+<h3 id="http-status-codes">HTTP status codes</h3>
+
+<p>Let&rsquo;s begin by updating our <code>snippetCreate</code> handler function so that it sends a <code>405</code> (method not allowed) HTTP status code <em>unless</em> the request method is <code>POST</code>. To do this we&rsquo;ll need to use the <code>w.WriteHeader()</code> method like so:</p>
+
+<figure class="code go">
+<figcaption>File: main.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="o">...</span>
+
+<span class="kd">func</span> <span class="nf">snippetCreate</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// Use r.Method to check whether the request is using POST or not.
+</span><span class="c1"></span>    <span class="k">if</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Method</span> <span class="o">!=</span> <span class="s">&#34;POST&#34;</span> <span class="p">{</span>
+        <span class="c1">// If it&#39;s not, use the w.WriteHeader() method to send a 405 status
+</span><span class="c1"></span>        <span class="c1">// code and the w.Write() method to write a &#34;Method Not Allowed&#34;
+</span><span class="c1"></span>        <span class="c1">// response body. We then return from the function so that the
+</span><span class="c1"></span>        <span class="c1">// subsequent code is not executed.
+</span><span class="c1"></span>        <span class="nx">w</span><span class="p">.</span><span class="nf">WriteHeader</span><span class="p">(</span><span class="mi">405</span><span class="p">)</span>
+        <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Method Not Allowed&#34;</span><span class="p">)</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Create a new snippet...&#34;</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="o">...</span></pre>
+</figure>
+
+<p>Although this change looks straightforward there are a couple of nuances I should explain:</p>
+
+<ul>
+<li><p>It&rsquo;s only possible to call <code>w.WriteHeader()</code> once per response, and after the status code has been written it can&rsquo;t be changed. If you try to call <code>w.WriteHeader()</code> a second time Go will log a warning message.</p></li>
+
+<li><p>If you don&rsquo;t call <code>w.WriteHeader()</code> explicitly, then the first call to <code>w.Write()</code> will automatically send a <code>200 OK</code> status code to the user.  So, if you want to send a non-200 status code, you must call <code>w.WriteHeader()</code> <em>before</em> any call to <code>w.Write()</code>.</p></li>
+</ul>
+
+<p>Let&rsquo;s take a look at this in action.</p>
+
+<p>Restart the server, then open a second terminal window and use curl to make a <code>POST</code> request to <a href="http://localhost:4000/snippet/create"><code>http://localhost:4000/snippet/create</code></a>. You should get a HTTP response with a <code>200 OK</code> status code similar to this:</p>
+
+<figure class="code bash">
+<pre>$ curl -i -X POST http://localhost:4000/snippet/create
+<samp>HTTP/1.1 200 OK
+Date: Sat, 29 Jan 2022 10:27:14 GMT
+Content-Length: 23
+Content-Type: text/plain; charset=utf-8
+
+Create a new snippet...</samp></pre>
+</figure>
+
+<p>But if you use a different request method &mdash; like <code>GET</code>, <code>PUT</code> or <code>DELETE</code> &mdash; you should now get response with a <code>405 Method Not Allowed</code> status code. For example:</p>
+
+<figure class="code bash">
+<pre>$ curl -i -X PUT http://localhost:4000/snippet/create
+<samp>HTTP/1.1 405 Method Not Allowed
+Date: Sat, 29 Jan 2022 10:27:55 GMT
+Content-Length: 18
+Content-Type: text/plain; charset=utf-8
+
+Method Not Allowed</samp></pre>
+</figure>
+
+<h3 id="customizing-headers">Customizing headers</h3>
+
+<p>Another improvement we can make is to include an <code>Allow</code> header with the <code>405 Method Not Allowed</code> response to let the user know which request methods <em>are</em> supported for that particular URL.</p>
+
+<p>We can do this by using the <code>w.Header().Set()</code> method to add a new header to the <dfn>response header map</dfn>, like so:</p>
+
+<figure class="code go">
+<figcaption>File: main.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="o">...</span>
+
+<span class="kd">func</span> <span class="nf">snippetCreate</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Method</span> <span class="o">!=</span> <span class="s">&#34;POST&#34;</span> <span class="p">{</span>
+        <span class="c1">// Use the Header().Set() method to add an &#39;Allow: POST&#39; header to the
+</span><span class="c1"></span>        <span class="c1">// response header map. The first parameter is the header name, and
+</span><span class="c1"></span>        <span class="c1">// the second parameter is the header value.
+</span><span class="c1"></span>        <span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="s">&#34;Allow&#34;</span><span class="p">,</span> <span class="s">&#34;POST&#34;</span><span class="p">)</span>
+        <span class="nx">w</span><span class="p">.</span><span class="nf">WriteHeader</span><span class="p">(</span><span class="mi">405</span><span class="p">)</span>
+        <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Method Not Allowed&#34;</span><span class="p">)</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Create a new snippet...&#34;</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="o">...</span></pre>
+</figure>
+
+<aside class="important"><p>
+<strong>Important:</strong> Changing the response header map after a call to <code>w.WriteHeader()</code> or <code>w.Write()</code> will have no effect on the headers that the user receives. You need to make sure that your response header map contains all the headers you want <em>before</em> you call these methods.
+</p></aside>
+
+<p>Let&rsquo;s take a look at this in action again by sending a non-<code>POST</code> request to our <code>/snippet/create</code> URL, like so:</p>
+
+<figure class="code bash">
+<pre>$ curl -i -X PUT http://localhost:4000/snippet/create
+<samp>HTTP/1.1 405 Method Not Allowed
+Allow: POST
+Date: Sat, 29 Jan 2022 10:29:12 GMT
+Content-Length: 18
+Content-Type: text/plain; charset=utf-8
+
+Method Not Allowed</samp></pre>
+</figure>
+
+<p>Notice how the response now includes our new <code>Allow: POST</code> header?</p>
+
+<h3 id="the-http-error-shortcut">The http.Error shortcut</h3>
+
+<p>If you want to send a non-<code>200</code> status code and a plain-text response body (like we are in the code above) then it&rsquo;s a good opportunity to use the <a href="https://pkg.go.dev/net/http/#Error"><code>http.Error()</code></a> shortcut. This is a lightweight helper function which takes a given message and status code, then calls the <code>w.WriteHeader()</code> and <code>w.Write()</code> methods behind-the-scenes for us.</p>
+
+<p>Let&rsquo;s update the code to use this instead.</p>
+
+<figure class="code go">
+<figcaption>File: main.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="o">...</span>
+
+<span class="kd">func</span> <span class="nf">snippetCreate</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Method</span> <span class="o">!=</span> <span class="s">&#34;POST&#34;</span> <span class="p">{</span>
+        <span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="s">&#34;Allow&#34;</span><span class="p">,</span> <span class="s">&#34;POST&#34;</span><span class="p">)</span>
+        <span class="c1">// Use the http.Error() function to send a 405 status code and &#34;Method Not
+</span><span class="c1"></span>        <span class="c1">// Allowed&#34; string as the response body.
+</span><span class="c1"></span>        <span class="nx">http</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="s">&#34;Method Not Allowed&#34;</span><span class="p">,</span> <span class="mi">405</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Create a new snippet...&#34;</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="o">...</span></pre>
+</figure>
+
+<p>In terms of functionality this is almost exactly the same. The biggest difference is that we&rsquo;re now passing our <code>http.ResponseWriter</code> to another function, which sends a response to the user for us.</p>
+
+<p>The pattern of passing <code>http.ResponseWriter</code> to other functions is super-common in Go, and something we&rsquo;ll do a lot throughout this book. In practice, it&rsquo;s quite rare to use the <code>w.Write()</code> and <code>w.WriteHeader()</code> methods directly like we have been doing so far. But I wanted to introduce them upfront because they underpin the more advanced (and interesting!) ways to send responses.</p>
+
+<h3 id="the-net-http-constants">The net/http constants</h3>
+
+<p>One final tweak we can make is to use constants from the <code>net/http</code> package for HTTP methods and status codes, instead of writing the strings and integers ourselves.</p>
+
+<p>Specifically, we can use the constant <code>http.MethodPost</code> instead of the string <code>&quot;POST&quot;</code>, and the constant <code>http.StatusMethodNotAllowed</code> instead of the integer <code>405</code>. Like so:</p>
+
+<figure class="code go">
+<figcaption>File: main.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="o">...</span>
+
+<span class="kd">func</span> <span class="nf">snippetCreate</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Method</span> <span class="o">!=</span> <span class="nx">http</span><span class="p">.</span><span class="nx">MethodPost</span> <span class="p">{</span>
+        <span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="s">&#34;Allow&#34;</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nx">MethodPost</span><span class="p">)</span>
+        <span class="nx">http</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="s">&#34;Method Not Allowed&#34;</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nx">StatusMethodNotAllowed</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Create a new snippet...&#34;</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="o">...</span></pre>
+</figure>
+
+<p>Using these constants is good practice because it helps prevent runtime errors due to typos,  and in the case of the HTTP status code constants, it can also help make your code clearer and self-documenting &mdash; especially when dealing with less-commonly-used status codes.</p>
+
+<aside class="hint"><p>
+<strong>Hint:</strong> You can find the complete list of the <code>net/http</code> package&rsquo;s constants <a href="https://pkg.go.dev/net/http/#pkg-constants">here</a>.
+</p></aside>
+
+<hr />
+
+<h3 id="additional-information">Additional information</h3>
+
+<h4 id="system-generated-headers-and-content-sniffing">System-generated headers and content sniffing</h4>
+
+<p>When sending a response Go will automatically set three <dfn>system-generated</dfn> headers for you: <code>Date</code> and <code>Content-Length</code> and <code>Content-Type</code>.</p>
+
+<p>The <code>Content-Type</code> header is particularly interesting. Go will attempt to set the correct one for you by <dfn>content sniffing</dfn> the response body with the <a href="https://pkg.go.dev/net/http/#DetectContentType"><code>http.DetectContentType()</code></a> function. If this function can&rsquo;t guess the content type, Go will fall back to setting the header <code>Content-Type: application/octet-stream</code> instead.</p>
+
+<p>The <code>http.DetectContentType()</code> function generally works quite well, but a common gotcha for web developers new to Go is that it can&rsquo;t distinguish JSON from plain text. So, by default, JSON responses will be sent with a <code>Content-Type: text/plain; charset=utf-8</code> header. You can prevent this from happening by setting the correct header manually like so:</p>
+
+<figure class="code go">
+<pre><span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="s">&#34;Content-Type&#34;</span><span class="p">,</span> <span class="s">&#34;application/json&#34;</span><span class="p">)</span>
+<span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">`</span><span class="s">{</span><span class="s">&#34;name&#34;:&#34;Alex&#34;}</span><span class="s">`</span><span class="p">)</span><span class="p">)</span></pre>
+</figure>
+
+<h4 id="manipulating-the-header-map">Manipulating the header map</h4>
+
+<p>In the code above we used <code>w.Header().Set()</code> to add a new header to the response header map. But there&rsquo;s also <code>Add()</code>, <code>Del()</code>, <code>Get()</code> and <code>Values()</code> methods that you can use to read and manipulate the header map too.</p>
+
+<figure class="code go">
+<pre><span class="c1">// Set a new cache-control header. If an existing &#34;Cache-Control&#34; header exists
+</span><span class="c1"></span><span class="c1">// it will be overwritten.
+</span><span class="c1"></span><span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="s">&#34;Cache-Control&#34;</span><span class="p">,</span> <span class="s">&#34;public, max-age=31536000&#34;</span><span class="p">)</span>
+
+<span class="c1">// In contrast, the Add() method appends a new &#34;Cache-Control&#34; header and can
+</span><span class="c1"></span><span class="c1">// be called multiple times.
+</span><span class="c1"></span><span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="s">&#34;Cache-Control&#34;</span><span class="p">,</span> <span class="s">&#34;public&#34;</span><span class="p">)</span>
+<span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="s">&#34;Cache-Control&#34;</span><span class="p">,</span> <span class="s">&#34;max-age=31536000&#34;</span><span class="p">)</span>
+
+<span class="c1">// Delete all values for the &#34;Cache-Control&#34; header.
+</span><span class="c1"></span><span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Del</span><span class="p">(</span><span class="s">&#34;Cache-Control&#34;</span><span class="p">)</span>
+
+<span class="c1">// Retrieve the first value for the &#34;Cache-Control&#34; header.
+</span><span class="c1"></span><span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="s">&#34;Cache-Control&#34;</span><span class="p">)</span>
+
+<span class="c1">// Retrieve a slice of all values for the &#34;Cache-Control&#34; header.
+</span><span class="c1"></span><span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Values</span><span class="p">(</span><span class="s">&#34;Cache-Control&#34;</span><span class="p">)</span></pre>
+</figure>
+
+<h4 id="header-canonicalization">Header canonicalization</h4>
+
+<p>When you&rsquo;re using the <code>Set()</code>, <code>Add()</code>, <code>Del()</code>, <code>Get()</code> and <code>Values()</code> methods on the header map, the header name will always be canonicalized using the <a href="https://pkg.go.dev/net/textproto/#CanonicalMIMEHeaderKey"><code>textproto.CanonicalMIMEHeaderKey()</code></a> function. This converts the first letter and any letter following a hyphen to upper case, and the rest of the letters to lowercase. This has the practical implication that when calling these methods the header name is <em>case-insensitive</em>.</p>
+
+<p>If you need to avoid this canonicalization behavior you can edit the underlying header map directly (it has the type <code>map[string][]string</code>). For example:</p>
+
+<figure class="code go">
+<pre><span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">[</span><span class="s">&#34;X-XSS-Protection&#34;</span><span class="p">]</span> <span class="p">=</span> <span class="p">[</span><span class="p">]</span><span class="kt">string</span><span class="p">{</span><span class="s">&#34;1; mode=block&#34;</span><span class="p">}</span></pre>
+</figure>
+
+<aside class="note"><p>
+<strong>Note:</strong> If a HTTP/2 connection is being used, Go will <em>always</em> automatically convert the header names and values to lowercase for you as per <a href="https://tools.ietf.org/html/rfc7540#section-8.1.2">the HTTP/2 specifications</a>.
+</p></aside>
+
+<h4 id="suppressing-system-generated-headers">Suppressing system-generated headers</h4>
+
+<p>The <code>Del()</code> method doesn&rsquo;t remove system-generated headers. To suppress these, you need to access the underlying header map directly and set the value to <code>nil</code>. If you want to suppress the <code>Date</code> header, for example, you need to write:</p>
+
+<figure class="code go">
+<pre><span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">[</span><span class="s">&#34;Date&#34;</span><span class="p">]</span> <span class="p">=</span> <span class="kc">nil</span></pre>
+</figure>
+
+			
+		</main>
+		<footer>
+			<div class="wrapper">
+				<div>
+					&lsaquo; <a href="02.03-routing-requests.html">Previous</a>
+				</div>
+				<div>
+					<a href="00.01-contents.html">Contents</a>
+				</div>
+				<div>
+					<a href="02.05-url-query-strings.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</footer>
+	</body>
+</html>

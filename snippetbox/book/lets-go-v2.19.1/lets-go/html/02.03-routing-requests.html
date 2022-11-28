@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<meta name="author" content="Alex Edwards">
+		<meta name="copyright" content="Copyright Alex Edwards 2022">
+		<title>Routing requests &mdash; Let's Go</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link rel="stylesheet" type="text/css" href="assets/css/main.css">
+	</head>
+	<body>
+		<header>
+			<div class="wrapper">
+				<div>
+					
+						
+						<a href="00.00-front-matter.html">Let's Go</a> <span class="crumbs">&rsaquo; <a href="02.00-foundations.html">Foundations</a> &rsaquo; Routing requests</span>
+						
+					
+				</div>
+				<div>
+					&lsaquo; <a href="02.02-web-application-basics.html">Previous</a>
+					&middot; <a href="00.01-contents.html">Contents</a> &middot;
+					<a href="02.04-customizing-http-headers.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</header>
+		<main class="wrapper text">
+			<div class="chapter">Chapter 2.3.</div>
+			<h2 id="routing-requests">Routing requests</h2>
+
+<p>Having a web application with just one route isn&rsquo;t very exciting&hellip; or useful! Let&rsquo;s add a couple more routes so that the application starts to shape up like this:</p>
+
+<table>
+<thead>
+<tr>
+<th>URL Pattern</th>
+<th>Handler</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>/</td>
+<td>home</td>
+<td>Display the home page</td>
+</tr>
+
+<tr>
+<td>/snippet/view</td>
+<td>snippetView</td>
+<td>Display a specific snippet</td>
+</tr>
+
+<tr>
+<td>/snippet/create</td>
+<td>snippetCreate</td>
+<td>Create a new snippet</td>
+</tr>
+</tbody>
+</table>
+<p>Reopen the <code>main.go</code> file and update it as follows:</p>
+
+<figure class="code go">
+<figcaption>File: main.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;log&#34;</span>
+    <span class="s">&#34;net/http&#34;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span> <span class="nf">home</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Hello from Snippetbox&#34;</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// Add a snippetView handler function.
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">snippetView</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Display a specific snippet...&#34;</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// Add a snippetCreate handler function.
+</span><span class="c1"></span><span class="kd">func</span> <span class="nf">snippetCreate</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Create a new snippet...&#34;</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nf">main</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// Register the two new handler functions and corresponding URL patterns with
+</span><span class="c1"></span>    <span class="c1">// the servemux, in exactly the same way that we did before.
+</span><span class="c1"></span>    <span class="nx">mux</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">NewServeMux</span><span class="p">(</span><span class="p">)</span>
+    <span class="nx">mux</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/&#34;</span><span class="p">,</span> <span class="nx">home</span><span class="p">)</span>
+    <span class="nx">mux</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/snippet/view&#34;</span><span class="p">,</span> <span class="nx">snippetView</span><span class="p">)</span>
+    <span class="nx">mux</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/snippet/create&#34;</span><span class="p">,</span> <span class="nx">snippetCreate</span><span class="p">)</span>
+
+    <span class="nx">log</span><span class="p">.</span><span class="nf">Print</span><span class="p">(</span><span class="s">&#34;Starting server on :4000&#34;</span><span class="p">)</span>
+    <span class="nx">err</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">ListenAndServe</span><span class="p">(</span><span class="s">&#34;:4000&#34;</span><span class="p">,</span> <span class="nx">mux</span><span class="p">)</span>
+    <span class="nx">log</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+<span class="p">}</span></pre>
+</figure>
+
+<p>Make sure these changes are saved and then restart the web application:</p>
+
+<figure class="code bash">
+<pre>$ cd $HOME/code/snippetbox
+$ go run .
+<samp>2022/01/29 11:16:43 Starting server on :4000</samp></pre>
+</figure>
+
+<p>If you visit the following links in your web browser you should now get the appropriate response for each route:</p>
+
+<ul>
+<li><a href="http://localhost:4000/snippet/view"><code>http://localhost:4000/snippet/view</code></a></li>
+</ul>
+
+<figure class="img">
+<img src="assets/img/02.03-01.png" alt="02.03-01.png" />
+</figure>
+
+<ul>
+<li><a href="http://localhost:4000/snippet/create"><code>http://localhost:4000/snippet/create</code></a></li>
+</ul>
+
+<figure class="img">
+<img src="assets/img/02.03-02.png" alt="02.03-02.png" />
+</figure>
+
+<h3 id="fixed-path-and-subtree-patterns">Fixed path and subtree patterns</h3>
+
+<p>Now that the two new routes are up and running let&rsquo;s talk a bit of theory.</p>
+
+<p>Go&rsquo;s servemux supports two different types of URL patterns: <em>fixed paths</em> and <em>subtree paths</em>. Fixed paths <em>don&rsquo;t</em> end with a trailing slash, whereas subtree paths <em>do</em> end with a trailing slash.</p>
+
+<p>Our two new patterns &mdash; <code>&quot;/snippet/view&quot;</code> and <code>&quot;/snippet/create&quot;</code> &mdash; are both examples of fixed paths. In Go&rsquo;s servemux, fixed path patterns like these are only matched (and the corresponding handler called) when the request URL path <em>exactly</em> matches the fixed path.</p>
+
+<p>In contrast, our pattern <code>&quot;/&quot;</code> is an example of a subtree path (because it ends in a trailing slash). Another example would be something like <code>&quot;/static/&quot;</code>. Subtree path patterns are matched (and the corresponding handler called) whenever the <em>start</em> of a request URL path matches the subtree path. If it helps your understanding, you can think of subtree paths as acting a bit like they have a wildcard at the end, like <code>&quot;/**&quot;</code> or <code>&quot;/static/**&quot;</code>.</p>
+
+<p>This helps explain why the <code>&quot;/&quot;</code> pattern is acting like a catch-all. The pattern essentially means <em>match a single slash, followed by anything (or nothing at all)</em>.</p>
+
+<h3 id="restricting-the-root-url-pattern">Restricting the root url pattern</h3>
+
+<p>So what if you don&rsquo;t want the <code>&quot;/&quot;</code> pattern to act like a catch-all?</p>
+
+<p>For instance, in the application we&rsquo;re building we want the home page to be displayed if &mdash; and only if &mdash; the request URL path exactly matches <code>&quot;/&quot;</code>.  Otherwise, we want the user to receive a <code>404 page not found</code> response.</p>
+
+<p>It&rsquo;s not possible to change the behavior of Go&rsquo;s servemux to do this, but you <em>can</em> include a simple check in the <code>home</code> hander which ultimately has the same effect:</p>
+
+<figure class="code go">
+<figcaption>File: main.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="o">...</span>
+
+<span class="kd">func</span> <span class="nf">home</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// Check if the current request URL path exactly matches &#34;/&#34;. If it doesn&#39;t, use
+</span><span class="c1"></span>    <span class="c1">// the http.NotFound() function to send a 404 response to the client.
+</span><span class="c1"></span>    <span class="c1">// Importantly, we then return from the handler. If we don&#39;t return the handler
+</span><span class="c1"></span>    <span class="c1">// would keep executing and also write the &#34;Hello from SnippetBox&#34; message.
+</span><span class="c1"></span>    <span class="k">if</span> <span class="nx">r</span><span class="p">.</span><span class="nx">URL</span><span class="p">.</span><span class="nx">Path</span> <span class="o">!=</span> <span class="s">&#34;/&#34;</span> <span class="p">{</span>
+        <span class="nx">http</span><span class="p">.</span><span class="nf">NotFound</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">r</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Hello from Snippetbox&#34;</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="o">...</span></pre>
+</figure>
+
+<p>Go ahead and make that change, then restart the server and make a request for an unregistered URL path like <a href="http://localhost:4000/missing"><code>http://localhost:4000/missing</code></a>. You should get a <code>404</code> response which looks a bit like this:</p>
+
+<figure class="img">
+<img src="assets/img/02.03-03.png" alt="02.03-03.png" />
+</figure>
+
+<h3 id="the-defaultservemux">The DefaultServeMux</h3>
+
+<p>If you&rsquo;ve been working with Go for a while you might have come across the <a href="https://pkg.go.dev/net/http/#Handle"><code>http.Handle()</code></a> and <a href="https://pkg.go.dev/net/http/#HandleFunc"><code>http.HandleFunc()</code></a> functions. These allow you to register routes <em>without</em> declaring a servemux, like this:</p>
+
+<figure class="code go">
+<pre><span class="kd">func</span> <span class="nf">main</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">http</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/&#34;</span><span class="p">,</span> <span class="nx">home</span><span class="p">)</span>
+    <span class="nx">http</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/snippet/view&#34;</span><span class="p">,</span> <span class="nx">snippetView</span><span class="p">)</span>
+    <span class="nx">http</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/snippet/create&#34;</span><span class="p">,</span> <span class="nx">snippetCreate</span><span class="p">)</span>
+
+    <span class="nx">log</span><span class="p">.</span><span class="nf">Print</span><span class="p">(</span><span class="s">&#34;Starting server on :4000&#34;</span><span class="p">)</span>
+    <span class="nx">err</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">ListenAndServe</span><span class="p">(</span><span class="s">&#34;:4000&#34;</span><span class="p">,</span> <span class="kc">nil</span><span class="p">)</span>
+    <span class="nx">log</span><span class="p">.</span><span class="nf">Fatal</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+<span class="p">}</span></pre>
+</figure>
+
+<p>Behind the scenes, these functions register their routes with something called the <dfn>DefaultServeMux</dfn>. There&rsquo;s nothing special about this &mdash; it&rsquo;s just regular servemux like we&rsquo;ve already been using, but which is initialized by default and stored in a <code>net/http</code> global variable. Here&rsquo;s the relevant line from the Go source code:</p>
+
+<figure class="code go">
+<pre><span class="kd">var</span> <span class="nx">DefaultServeMux</span> <span class="p">=</span> <span class="nf">NewServeMux</span><span class="p">(</span><span class="p">)</span></pre>
+</figure>
+
+<p>Although this approach can make your code slightly shorter, I don&rsquo;t recommend it for production applications.</p>
+
+<p>Because <code>DefaultServeMux</code> is a global variable, any package can access it and register a route &mdash; including any third-party packages that your application imports. If one of those third-party packages is compromised, they could use <code>DefaultServeMux</code> to expose a malicious handler to the web.</p>
+
+<p>So, for the sake of security, it&rsquo;s generally a good idea to avoid <code>DefaultServeMux</code> and the corresponding helper functions. Use your own locally-scoped servemux instead, like we have been doing in this project so far.</p>
+
+<hr />
+
+<h3 id="additional-information">Additional information</h3>
+
+<h4 id="servemux-features-and-quirks">Servemux features and quirks</h4>
+
+<ul>
+<li><p>In Go&rsquo;s servemux, longer URL patterns always take precedence over shorter ones. So, if a servemux contains multiple patterns which match a request, it will always dispatch the request to the handler corresponding to the longest pattern. This has the nice side-effect that you can register patterns in any order <em>and it won&rsquo;t change how the servemux behaves</em>.</p></li>
+
+<li><p>Request URL paths are automatically sanitized. If the request path contains any <code>.</code> or <code>..</code> elements or repeated slashes, the user will automatically be redirected to an equivalent clean URL. For example, if a user makes a request to <code>/foo/bar/..//baz</code> they will automatically be sent a <code>301 Permanent Redirect</code> to <code>/foo/baz</code> instead.</p></li>
+
+<li><p>If a subtree path has been registered and a request is received for that subtree path <em>without</em> a trailing slash, then the user will automatically be sent a <code>301 Permanent Redirect</code> to the subtree path with the slash added. For example, if you have registered the subtree path <code>/foo/</code>, then any request to <code>/foo</code> will be redirected to <code>/foo/</code>.</p></li>
+</ul>
+
+<h4 id="host-name-matching">Host name matching</h4>
+
+<p>It&rsquo;s possible to include host names in your URL patterns. This can be useful when you want to redirect all HTTP requests to a canonical URL, or if your application is acting as the back end for multiple sites or services. For example:</p>
+
+<figure class="code go">
+<pre><span class="nx">mux</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">NewServeMux</span><span class="p">(</span><span class="p">)</span>
+<span class="nx">mux</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;foo.example.org/&#34;</span><span class="p">,</span> <span class="nx">fooHandler</span><span class="p">)</span>
+<span class="nx">mux</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;bar.example.org/&#34;</span><span class="p">,</span> <span class="nx">barHandler</span><span class="p">)</span>
+<span class="nx">mux</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/baz&#34;</span><span class="p">,</span> <span class="nx">bazHandler</span><span class="p">)</span></pre>
+</figure>
+
+<p>When it comes to pattern matching, any host-specific patterns will be checked first and if there is a match the request will be dispatched to the corresponding handler. Only when there <em>isn&rsquo;t</em> a host-specific match found will the non-host specific patterns also be checked.</p>
+
+<h4 id="what-about-restful-routing">What about RESTful routing?</h4>
+
+<p>It&rsquo;s important to acknowledge that the routing functionality provided by Go&rsquo;s servemux is pretty lightweight. It doesn&rsquo;t support routing based on the request method, it doesn&rsquo;t support clean URLs with variables in them, and it doesn&rsquo;t support regexp-based patterns. If you have a background in using frameworks like Rails, Django or Laravel you might find this a bit restrictive&hellip; and surprising!</p>
+
+<p>But don&rsquo;t let that put you off. The reality is that Go&rsquo;s servemux can still get you quite far, and for many applications is perfectly sufficient. For the times that you need more, there&rsquo;s a huge choice of third-party routers that you can use instead of Go&rsquo;s servemux. We&rsquo;ll look at some of the popular options later in the book.</p>
+
+			
+		</main>
+		<footer>
+			<div class="wrapper">
+				<div>
+					&lsaquo; <a href="02.02-web-application-basics.html">Previous</a>
+				</div>
+				<div>
+					<a href="00.01-contents.html">Contents</a>
+				</div>
+				<div>
+					<a href="02.04-customizing-http-headers.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</footer>
+	</body>
+</html>

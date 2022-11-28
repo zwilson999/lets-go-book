@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<meta name="author" content="Alex Edwards">
+		<meta name="copyright" content="Copyright Alex Edwards 2022">
+		<title>Profiling test coverage &mdash; Let's Go</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link rel="stylesheet" type="text/css" href="assets/css/main.css">
+	</head>
+	<body>
+		<header>
+			<div class="wrapper">
+				<div>
+					
+						
+						<a href="00.00-front-matter.html">Let's Go</a> <span class="crumbs">&rsaquo; <a href="14.00-testing.html">Testing</a> &rsaquo; Profiling test coverage</span>
+						
+					
+				</div>
+				<div>
+					&lsaquo; <a href="14.07-integration-testing.html">Previous</a>
+					&middot; <a href="00.01-contents.html">Contents</a> &middot;
+					<a href="15.00-conclusion.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</header>
+		<main class="wrapper text">
+			<div class="chapter">Chapter 14.8.</div>
+			<h2 id="profiling-test-coverage">Profiling test coverage</h2>
+
+<p>A great feature of the <code>go test</code> tool is the metrics and visualizations that it provides for <dfn>test coverage</dfn>.</p>
+
+<p>Go ahead and try running the tests in our project using the <code>-cover</code> flag like so:</p>
+
+<figure class="code bash">
+<pre>$ go test -cover ./...
+<samp>ok  	snippetbox.alexedwards.net/cmd/web	0.022s	coverage: 46.1% of statements
+?   	snippetbox.alexedwards.net/internal/assert	[no test files]
+ok  	snippetbox.alexedwards.net/internal/models	1.081s	coverage: 6.5% of statements
+?   	snippetbox.alexedwards.net/internal/models/mocks	[no test files]
+?   	snippetbox.alexedwards.net/internal/validator	[no test files]
+?   	snippetbox.alexedwards.net/ui	[no test files]</samp></pre>
+</figure>
+
+<p>From the results here we can see that 46.1% of the statements in our <code>cmd/web</code> package are executed during our tests, and for our <code>internal/models</code> package the figure is 6.5%.</p>
+
+<aside class="note"><p>
+<strong>Note:</strong> Your numbers may be slightly different depending on the exact version of the book you&rsquo;re reading, or if you&rsquo;ve made any adaptations to the code as you&rsquo;ve been following along.
+</p></aside>
+
+<p>We can get a more detailed breakdown of test coverage <em>by method and function</em> by using the <code>-coverprofile</code> flag like so:</p>
+
+<figure class="code bash">
+<pre>$ go test -coverprofile=/tmp/profile.out ./...</pre>
+</figure>
+
+<p>This will execute your tests as normal and &mdash; if all your tests pass &mdash; it will then write a <dfn>coverage profile</dfn> to a specific location (in our case <code>/tmp/profile.out</code>).</p>
+
+<p>You can then view the coverage profile by using the <code>go tool cover</code> command like so:</p>
+
+<figure class="code bash">
+<pre>$ go tool cover -func=/tmp/profile.out
+<samp>snippetbox.alexedwards.net/cmd/web/handlers.go:15:		    home			        0.0%
+snippetbox.alexedwards.net/cmd/web/handlers.go:31:		    snippetView		        92.9%
+snippetbox.alexedwards.net/cmd/web/handlers.go:56:		    snippetCreate		    0.0%
+snippetbox.alexedwards.net/cmd/web/handlers.go:82:		    snippetCreatePost	    0.0%
+snippetbox.alexedwards.net/cmd/web/handlers.go:126:		    userSignup		        100.0%
+snippetbox.alexedwards.net/cmd/web/handlers.go:132:		    userSignupPost		    88.5%
+snippetbox.alexedwards.net/cmd/web/handlers.go:192:		    userLogin		        0.0%
+snippetbox.alexedwards.net/cmd/web/handlers.go:198:		    userLoginPost		    0.0%
+snippetbox.alexedwards.net/cmd/web/handlers.go:256:		    userLogoutPost		    0.0%
+snippetbox.alexedwards.net/cmd/web/handlers.go:277:		    ping			        100.0%
+snippetbox.alexedwards.net/cmd/web/helpers.go:17:		    serverError		        0.0%
+snippetbox.alexedwards.net/cmd/web/helpers.go:27:		    clientError		        100.0%
+snippetbox.alexedwards.net/cmd/web/helpers.go:34:		    notFound		        100.0%
+snippetbox.alexedwards.net/cmd/web/helpers.go:38:		    newTemplateData		    100.0%
+snippetbox.alexedwards.net/cmd/web/helpers.go:47:		    render			        58.3%
+snippetbox.alexedwards.net/cmd/web/helpers.go:79:		    decodePostForm		    50.0%
+snippetbox.alexedwards.net/cmd/web/helpers.go:108:		    isAuthenticated		    75.0%
+snippetbox.alexedwards.net/cmd/web/main.go:31:			    main			        0.0%
+snippetbox.alexedwards.net/cmd/web/main.go:95:			    openDB			        0.0%
+snippetbox.alexedwards.net/cmd/web/middleware.go:11:		secureHeaders		    100.0%
+snippetbox.alexedwards.net/cmd/web/middleware.go:27:		logRequest		        100.0%
+snippetbox.alexedwards.net/cmd/web/middleware.go:35:		recoverPanic		    66.7%
+snippetbox.alexedwards.net/cmd/web/middleware.go:55:		requireAuthentication	16.7%
+snippetbox.alexedwards.net/cmd/web/middleware.go:78:		noSurf			        100.0%
+snippetbox.alexedwards.net/cmd/web/middleware.go:90:		authenticate		    38.5%
+snippetbox.alexedwards.net/cmd/web/routes.go:12:		    routes			        100.0%
+snippetbox.alexedwards.net/cmd/web/templates.go:23:		    humanDate		        100.0%
+snippetbox.alexedwards.net/cmd/web/templates.go:40:		    newTemplateCache	    83.3%
+snippetbox.alexedwards.net/internal/models/snippets.go:31:	Insert			        0.0%
+snippetbox.alexedwards.net/internal/models/snippets.go:61:	Get			            0.0%
+snippetbox.alexedwards.net/internal/models/snippets.go:98:	Latest			        0.0%
+snippetbox.alexedwards.net/internal/models/users.go:36:		Insert			        0.0%
+snippetbox.alexedwards.net/internal/models/users.go:68:		Authenticate		    0.0%
+snippetbox.alexedwards.net/internal/models/users.go:100:	Exists			        100.0%
+total:								                        (statements)		    38.1%</samp></pre>
+</figure>
+
+<p>An alternative and more visual way to view the coverage profile is to use the <code>-html</code> flag instead of <code>-func</code>.</p>
+
+<figure class="code bash">
+<pre>$ go tool cover -html=/tmp/profile.out</pre>
+</figure>
+
+<p>This will open a browser window containing a navigable and highlighted representation of your code, similar to this:</p>
+
+<figure class="img">
+<img src="assets/img/14.08-01.png" alt="14.08-01.png" />
+</figure>
+
+<p>It&rsquo;s easy to see exactly which statements get executed during your tests (colored green) and which are not (highlighted red).</p>
+
+<p>You can take this a step further and use the <code>-covermode=count</code> option when running <code>go test</code> like so:</p>
+
+<figure class="code bash">
+<pre>$ go test -covermode=count -coverprofile=/tmp/profile.out ./...
+$ go tool cover -html=/tmp/profile.out</pre>
+</figure>
+
+<p>Instead of just highlighting the statements in green and red, using <code>-covermode=count</code> makes the coverage profile record the exact <em>number of times</em> that each statement is executed during the tests.</p>
+
+<p>When viewed in the browser, statements which are executed more frequently are then shown in a more saturated shade of green, similar to this:</p>
+
+<figure class="img">
+<img src="assets/img/14.08-02.png" alt="14.08-02.png" />
+</figure>
+
+<aside class="note"><p>
+<strong>Note:</strong> If you&rsquo;re running some of your tests in parallel, you should use the <code>-covermode=atomic</code> flag (instead of <code>-covermode=count</code>) to ensure an accurate count.
+</p></aside>
+
+			
+		</main>
+		<footer>
+			<div class="wrapper">
+				<div>
+					&lsaquo; <a href="14.07-integration-testing.html">Previous</a>
+				</div>
+				<div>
+					<a href="00.01-contents.html">Contents</a>
+				</div>
+				<div>
+					<a href="15.00-conclusion.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</footer>
+	</body>
+</html>

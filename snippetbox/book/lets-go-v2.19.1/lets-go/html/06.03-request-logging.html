@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<meta name="author" content="Alex Edwards">
+		<meta name="copyright" content="Copyright Alex Edwards 2022">
+		<title>Request logging &mdash; Let's Go</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link rel="stylesheet" type="text/css" href="assets/css/main.css">
+	</head>
+	<body>
+		<header>
+			<div class="wrapper">
+				<div>
+					
+						
+						<a href="00.00-front-matter.html">Let's Go</a> <span class="crumbs">&rsaquo; <a href="06.00-middleware.html">Middleware</a> &rsaquo; Request logging</span>
+						
+					
+				</div>
+				<div>
+					&lsaquo; <a href="06.02-setting-security-headers.html">Previous</a>
+					&middot; <a href="00.01-contents.html">Contents</a> &middot;
+					<a href="06.04-panic-recovery.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</header>
+		<main class="wrapper text">
+			<div class="chapter">Chapter 6.3.</div>
+			<h2 id="request-logging">Request logging</h2>
+
+<p>Let&rsquo;s continue in the same vein and add some middleware to <em>log HTTP requests</em>. Specifically, we&rsquo;re going to use the <em>information logger</em> that we created earlier to record the IP address of the user, and which URL and method are being requested.</p>
+
+<p>Open your <code>middleware.go</code> file and create a <code>logRequest()</code> method using the standard middleware pattern, like so:</p>
+
+<figure class="code go">
+<figcaption>File: cmd/web/middleware.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="o">...</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">logRequest</span><span class="p">(</span><span class="nx">next</span> <span class="nx">http</span><span class="p">.</span><span class="nx">Handler</span><span class="p">)</span> <span class="nx">http</span><span class="p">.</span><span class="nx">Handler</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nx">http</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">app</span><span class="p">.</span><span class="nx">infoLog</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;%s - %s %s %s&#34;</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">RemoteAddr</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Proto</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Method</span><span class="p">,</span> <span class="nx">r</span><span class="p">.</span><span class="nx">URL</span><span class="p">.</span><span class="nf">RequestURI</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+
+        <span class="nx">next</span><span class="p">.</span><span class="nf">ServeHTTP</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">r</span><span class="p">)</span>
+    <span class="p">}</span><span class="p">)</span>
+<span class="p">}</span>
+</pre>
+</figure>
+
+<p>Notice that this time we&rsquo;re implementing the middleware as a method on <code>application</code>?</p>
+
+<p>This is perfectly valid to do. Our middleware method has the same signature as before, but because it is a method against <code>application</code> it <em>also</em> has access to the handler dependencies including the information logger.</p>
+
+<p>Now let&rsquo;s update our <code>routes.go</code> file so that the <code>logRequest</code> middleware is executed first, and for all requests, so that the flow of control (reading from left to right) looks like this:</p>
+
+<figure class="code plain">
+<pre>logRequest ↔ secureHeaders ↔ servemux ↔ application handler</pre>
+</figure>
+
+<figure class="code go">
+<figcaption>File: cmd/web/routes.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="s">&#34;net/http&#34;</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">routes</span><span class="p">(</span><span class="p">)</span> <span class="nx">http</span><span class="p">.</span><span class="nx">Handler</span> <span class="p">{</span>
+    <span class="nx">mux</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">NewServeMux</span><span class="p">(</span><span class="p">)</span>
+
+    <span class="nx">fileServer</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">FileServer</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nf">Dir</span><span class="p">(</span><span class="s">&#34;./ui/static/&#34;</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">mux</span><span class="p">.</span><span class="nf">Handle</span><span class="p">(</span><span class="s">&#34;/static/&#34;</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nf">StripPrefix</span><span class="p">(</span><span class="s">&#34;/static&#34;</span><span class="p">,</span> <span class="nx">fileServer</span><span class="p">)</span><span class="p">)</span>
+
+    <span class="nx">mux</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">home</span><span class="p">)</span>
+    <span class="nx">mux</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/snippet/view&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippetView</span><span class="p">)</span>
+    <span class="nx">mux</span><span class="p">.</span><span class="nf">HandleFunc</span><span class="p">(</span><span class="s">&#34;/snippet/create&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippetCreate</span><span class="p">)</span>
+
+    <span class="c1">// Wrap the existing chain with the logRequest middleware.
+</span><span class="c1"></span>    <span class="k">return</span> <span class="nx">app</span><span class="p">.</span><span class="nf">logRequest</span><span class="p">(</span><span class="nf">secureHeaders</span><span class="p">(</span><span class="nx">mux</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span></pre>
+</figure>
+
+<p>Alright&hellip; let&rsquo;s give it a try!</p>
+
+<p>Restart your application, browse around, and then check your terminal window. You should see log output which looks a bit like this:</p>
+
+<figure class="code bash">
+<pre>$ go run ./cmd/web
+<samp>INFO    2022/02/06 09:08:29 Starting server on :4000
+INFO    2022/02/06 09:08:31 127.0.0.1:45988 - HTTP/1.1 GET /
+INFO    2022/02/06 09:08:31 127.0.0.1:45988 - HTTP/1.1 GET /static/css/main.css
+INFO    2022/02/06 09:08:31 127.0.0.1:45988 - HTTP/1.1 GET /static/js/main.js
+INFO    2022/02/06 09:08:31 127.0.0.1:45988 - HTTP/1.1 GET /static/img/logo.png
+INFO    2022/02/06 09:08:31 127.0.0.1:45988 - HTTP/1.1 GET /static/img/favicon.ico
+INFO    2022/02/06 09:08:34 127.0.0.1:45988 - HTTP/1.1 GET /snippet/view?id=2</samp></pre>
+</figure>
+
+<aside class="note"><p>
+<strong>Note:</strong> Depending on how your browser caches static files, you might need to do a hard refresh (or open a new incognito/private browsing tab) to see any requests for static files.
+</p></aside>
+
+			
+		</main>
+		<footer>
+			<div class="wrapper">
+				<div>
+					&lsaquo; <a href="06.02-setting-security-headers.html">Previous</a>
+				</div>
+				<div>
+					<a href="00.01-contents.html">Contents</a>
+				</div>
+				<div>
+					<a href="06.04-panic-recovery.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</footer>
+	</body>
+</html>

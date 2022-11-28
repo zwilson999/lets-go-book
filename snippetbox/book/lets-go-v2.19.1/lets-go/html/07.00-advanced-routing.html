@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<meta name="author" content="Alex Edwards">
+		<meta name="copyright" content="Copyright Alex Edwards 2022">
+		<title>Advanced routing &mdash; Let's Go</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link rel="stylesheet" type="text/css" href="assets/css/main.css">
+	</head>
+	<body>
+		<header>
+			<div class="wrapper">
+				<div>
+					
+						
+						<a href="00.00-front-matter.html">Let's Go</a> <span class="crumbs">&rsaquo; Advanced routing</span>
+						
+					
+				</div>
+				<div>
+					&lsaquo; <a href="06.05-composable-middleware-chains.html">Previous</a>
+					&middot; <a href="00.01-contents.html">Contents</a> &middot;
+					<a href="07.01-choosing-a-router.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</header>
+		<main class="wrapper text">
+			<div class="chapter">Chapter 7.</div>
+			<h1 id="advanced-routing">Advanced routing</h1>
+
+<p>In the next section of this book we&rsquo;re going to add a HTML form to our application so that users can create new snippets.</p>
+
+<p>To make this work smoothly, we&rsquo;ll first need to update our application routes so that requests to <code>/snippet/create</code> are handled differently based on the request method. Specifically:</p>
+
+<ul>
+<li>For <code>GET /snippet/create</code> requests we want to show the user the HTML form for adding a new snippet.</li>
+<li>For <code>POST /snippet/create</code> requests we want to process this form data and then insert a new <code>snippet</code> record into our database.</li>
+</ul>
+
+<p>While we&rsquo;re at it, there are a couple of other routing-related improvements that we&rsquo;ll also make:</p>
+
+<ul>
+<li>We&rsquo;ll restrict all our other routes &mdash; which simply return information &mdash; to only support <code>GET</code> requests.</li>
+<li>We&rsquo;ll use <a href="https://en.wikipedia.org/wiki/Clean_URL">clean URLs</a> so that any variables are included in the URL path (like <code>/snippet/view/123</code>) and not appended as a query string (like <code>/snippet/view?id=123</code>).</li>
+</ul>
+
+<p>Essentially, we want to rejig our application routes and handlers so that they end up looking like this:</p>
+
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Pattern</th>
+<th>Handler</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>GET</td>
+<td>/</td>
+<td>home</td>
+<td>Display the home page</td>
+</tr>
+
+<tr>
+<td>GET</td>
+<td><span>/snippet/view/:id</span></td>
+<td>snippetView</td>
+<td>Display a specific snippet</td>
+</tr>
+
+<tr>
+<td>GET</td>
+<td>/snippet/create</td>
+<td>snippetCreate</td>
+<td>Display a HTML form for creating a new snippet</td>
+</tr>
+
+<tr>
+<td>POST</td>
+<td>/snippet/create</td>
+<td>snippetCreatePost</td>
+<td>Create a new snippet</td>
+</tr>
+
+<tr>
+<td>GET</td>
+<td>/static/</td>
+<td>http.FileServer</td>
+<td>Serve a specific static file</td>
+</tr>
+</tbody>
+</table>
+<p>As I mentioned <a href="02.03-routing-requests.html">earlier in the book</a>, Go&rsquo;s servemux doesn&rsquo;t support method based routing or clean URLs with variables in them. There are <a href="https://youtu.be/yi5A3cK1LNA?t=11m44s">some tricks</a> you can use to get around this, but most people tend to decide that it&rsquo;s easier to reach for a third-party package to help with routing.</p>
+
+<p>In this section of the book we will:</p>
+
+<ul>
+<li>Briefly discuss the features of a few good <a href="07.01-choosing-a-router.html">third-party routers</a>.</li>
+<li>Update our application to use one of these routers and demonstrate how to use <a href="07.02-clean-urls-and-method-based-routing.html">method-based routing and clean URLs</a>.</li>
+</ul>
+
+			
+		</main>
+		<footer>
+			<div class="wrapper">
+				<div>
+					&lsaquo; <a href="06.05-composable-middleware-chains.html">Previous</a>
+				</div>
+				<div>
+					<a href="00.01-contents.html">Contents</a>
+				</div>
+				<div>
+					<a href="07.01-choosing-a-router.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</footer>
+	</body>
+</html>

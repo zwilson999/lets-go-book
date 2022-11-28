@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<meta name="author" content="Alex Edwards">
+		<meta name="copyright" content="Copyright Alex Edwards 2022">
+		<title>Using embedded files &mdash; Let's Go</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link rel="stylesheet" type="text/css" href="assets/css/main.css">
+	</head>
+	<body>
+		<header>
+			<div class="wrapper">
+				<div>
+					
+						
+						<a href="00.00-front-matter.html">Let's Go</a> <span class="crumbs">&rsaquo; <a href="13.00-optional-go-features.html">Optional Go features</a> &rsaquo; Using embedded files</span>
+						
+					
+				</div>
+				<div>
+					&lsaquo; <a href="13.00-optional-go-features.html">Previous</a>
+					&middot; <a href="00.01-contents.html">Contents</a> &middot;
+					<a href="13.02-using-generics.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</header>
+		<main class="wrapper text">
+			<div class="chapter">Chapter 13.1.</div>
+			<h2 id="using-embedded-files">Using embedded files</h2>
+
+<p>Go provides an <a href="https://pkg.go.dev/embed/"><code>embed</code></a> package, which makes it possible to <em>embed external files into your Go program itself</em>.</p>
+
+<p>This feature is really nice because it makes it possible to create (and subsequently, distribute) Go programs that are completely self-contained and have everything that they need to run as part of the binary executable.</p>
+
+<p>To illustrate how to use the <code>embed</code> package, we&rsquo;ll update our application to embed and use the files in our existing <code>ui</code> directory (which contains our static CSS/JavaScript/image files and the HTML templates).</p>
+
+<p>If you&rsquo;d like to follow along, first create a new <code>ui/efs.go</code> file:</p>
+
+<figure class="code bash">
+<pre>$ touch ui/efs.go</pre>
+</figure>
+
+<p>And then add the following code:</p>
+
+<figure class="code go">
+<figcaption>File: ui/efs.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">ui</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;embed&#34;</span>
+<span class="p">)</span>
+
+<span class="c1">//go:embed &#34;html&#34; &#34;static&#34;
+</span><span class="c1"></span><span class="kd">var</span> <span class="nx">Files</span> <span class="nx">embed</span><span class="p">.</span><span class="nx">FS</span></pre>
+</figure>
+
+<p>The important line here is <code>//go:embed &quot;html&quot; &quot;static&quot;</code>.</p>
+
+<p>This looks like a comment, but it is actually a special <em>comment directive</em>. When our application is compiled, this comment directive instructs Go to store the files from our <code>ui/html</code> and <code>ui/static</code> folders in an <a href="https://pkg.go.dev/embed/#FS"><code>embed.FS</code></a> <em>embedded filesystem</em> referenced by the global variable <code>Files</code>.</p>
+
+<p>There are a few important details about this which we need to explain.</p>
+
+<ul>
+<li><p>The comment directive must be placed <em>immediately above</em> the variable in which you want to store the embedded files.</p></li>
+
+<li><p>The directive has the general format <code>go:embed &lt;paths&gt;</code>, and it&rsquo;s OK to specify multiple paths in one directive (like we have in the code above). The paths should be relative to the source code file containing the directive. So in our case, <code>go:embed &quot;static&quot; &quot;html&quot;</code> embeds the directories <code>ui/static</code> and <code>ui/html</code> from our project.</p></li>
+
+<li><p>You can only use the <code>go:embed</code> directive on global variables at package level, not within functions or methods. If you try to use it within a function or method, you’ll get the error <code>&quot;go:embed cannot apply to var inside func&quot;</code> at compile time.</p></li>
+
+<li><p>Paths cannot not contain <code>.</code> or <code>..</code> elements, nor may they begin or end with a <code>/</code>. This essentially restricts you to only embedding files that are contained in the same directory (or a subdirectory) as the source code which has the <code>go:embed</code> directive.</p></li>
+
+<li><p>If a path is to a directory, then all files in that directory are recursively embedded, except for files with names that begin with <code>.</code> or <code>_</code>. If you want to include these files you should use the <code>all:</code> prefix, like <code>go:embed &quot;all:static&quot;</code>.</p></li>
+
+<li><p>The path separator should always be a forward slash, even on Windows machines.</p></li>
+
+<li><p>The embedded file system is <em>always</em> rooted in the directory which contains the <code>go:embed</code> directive. So, in the example above, our <code>Files</code> variable contains an <code>embed.FS</code> embedded filesystem and the root of that filesystem is our <code>ui</code> directory.</p></li>
+</ul>
+
+<h3 id="using-the-static-files">Using the static files</h3>
+
+<p>Let&rsquo;s switch up our application so that it serves our static CSS, JavaScript and image files from the embedded file system &mdash; instead of reading them from the disk at runtime.</p>
+
+<p>Open your <code>cmd/web/routes.go</code> file and update it as follows:</p>
+
+<figure class="code go">
+<figcaption>File: cmd/web/routes.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;net/http&#34;</span>
+
+    <span class="s">&#34;snippetbox.alexedwards.net/ui&#34;</span> <span class="c1">// New import
+</span><span class="c1"></span>
+    <span class="s">&#34;github.com/julienschmidt/httprouter&#34;</span>
+    <span class="s">&#34;github.com/justinas/alice&#34;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">routes</span><span class="p">(</span><span class="p">)</span> <span class="nx">http</span><span class="p">.</span><span class="nx">Handler</span> <span class="p">{</span>
+    <span class="nx">router</span> <span class="o">:=</span> <span class="nx">httprouter</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="p">)</span>
+
+    <span class="nx">router</span><span class="p">.</span><span class="nx">NotFound</span> <span class="p">=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">app</span><span class="p">.</span><span class="nf">notFound</span><span class="p">(</span><span class="nx">w</span><span class="p">)</span>
+    <span class="p">}</span><span class="p">)</span>
+
+    <span class="c1">// Take the ui.Files embedded filesystem and convert it to a http.FS type so
+</span><span class="c1"></span>    <span class="c1">// that it satisfies the http.FileSystem interface. We then pass that to the
+</span><span class="c1"></span>    <span class="c1">// http.FileServer() function to create the file server handler.
+</span><span class="c1"></span>    <span class="nx">fileServer</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">FileServer</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nf">FS</span><span class="p">(</span><span class="nx">ui</span><span class="p">.</span><span class="nx">Files</span><span class="p">)</span><span class="p">)</span>
+
+    <span class="c1">// Our static files are contained in the &#34;static&#34; folder of the ui.Files
+</span><span class="c1"></span>    <span class="c1">// embedded filesystem. So, for example, our CSS stylesheet is located at
+</span><span class="c1"></span>    <span class="c1">// &#34;static/css/main.css&#34;. This means that we now longer need to strip the
+</span><span class="c1"></span>    <span class="c1">// prefix from the request URL -- any requests that start with /static/ can
+</span><span class="c1"></span>    <span class="c1">// just be passed directly to the file server and the corresponding static
+</span><span class="c1"></span>    <span class="c1">// file will be served (so long as it exists).
+</span><span class="c1"></span>    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/static/*filepath&#34;</span><span class="p">,</span> <span class="nx">fileServer</span><span class="p">)</span>
+
+    <span class="nx">dynamic</span> <span class="o">:=</span> <span class="nx">alice</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">sessionManager</span><span class="p">.</span><span class="nx">LoadAndSave</span><span class="p">,</span> <span class="nx">noSurf</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">authenticate</span><span class="p">)</span>
+
+    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/&#34;</span><span class="p">,</span> <span class="nx">dynamic</span><span class="p">.</span><span class="nf">ThenFunc</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">home</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/snippet/view/:id&#34;</span><span class="p">,</span> <span class="nx">dynamic</span><span class="p">.</span><span class="nf">ThenFunc</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">snippetView</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/user/signup&#34;</span><span class="p">,</span> <span class="nx">dynamic</span><span class="p">.</span><span class="nf">ThenFunc</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">userSignup</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodPost</span><span class="p">,</span> <span class="s">&#34;/user/signup&#34;</span><span class="p">,</span> <span class="nx">dynamic</span><span class="p">.</span><span class="nf">ThenFunc</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">userSignupPost</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/user/login&#34;</span><span class="p">,</span> <span class="nx">dynamic</span><span class="p">.</span><span class="nf">ThenFunc</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">userLogin</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodPost</span><span class="p">,</span> <span class="s">&#34;/user/login&#34;</span><span class="p">,</span> <span class="nx">dynamic</span><span class="p">.</span><span class="nf">ThenFunc</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">userLoginPost</span><span class="p">)</span><span class="p">)</span>
+
+    <span class="nx">protected</span> <span class="o">:=</span> <span class="nx">dynamic</span><span class="p">.</span><span class="nf">Append</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">requireAuthentication</span><span class="p">)</span>
+
+    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/snippet/create&#34;</span><span class="p">,</span> <span class="nx">protected</span><span class="p">.</span><span class="nf">ThenFunc</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">snippetCreate</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodPost</span><span class="p">,</span> <span class="s">&#34;/snippet/create&#34;</span><span class="p">,</span> <span class="nx">protected</span><span class="p">.</span><span class="nf">ThenFunc</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">snippetCreatePost</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodPost</span><span class="p">,</span> <span class="s">&#34;/user/logout&#34;</span><span class="p">,</span> <span class="nx">protected</span><span class="p">.</span><span class="nf">ThenFunc</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">userLogoutPost</span><span class="p">)</span><span class="p">)</span>
+
+    <span class="nx">standard</span> <span class="o">:=</span> <span class="nx">alice</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">recoverPanic</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">logRequest</span><span class="p">,</span> <span class="nx">secureHeaders</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nx">standard</span><span class="p">.</span><span class="nf">Then</span><span class="p">(</span><span class="nx">router</span><span class="p">)</span>
+<span class="p">}</span></pre>
+</figure>
+
+<p>If you save the files and then restart the application, you should find that everything compiles and runs correctly. When you visit <a href="https://localhost:4000/"><code>https://localhost:4000</code></a> in your browser, the static files should be served from the embedded filesystem and everything should look normal.</p>
+
+<figure class="img">
+<img src="assets/img/13.01-01.png" alt="13.01-01.png" />
+</figure>
+
+<p>If you want, you can also navigate directly to the static files to check that they are still available. For example, visiting <a href="https://localhost:4000/static/css/main.css"><code>https://localhost:4000/static/css/main.css</code></a> should display the CSS stylesheet for the webpage from the embedded filesystem.</p>
+
+<figure class="img">
+<img src="assets/img/13.01-02.png" alt="13.01-02.png" />
+</figure>
+
+<h3 id="embedding-html-templates">Embedding HTML templates</h3>
+
+<p>Next let&rsquo;s update the <code>cmd/web/templates.go</code> file so that our template cache uses the embedded HTML template files from <code>ui.Files</code>, instead of the ones on disk.</p>
+
+<p>To help us with this, we&rsquo;ll need to leverage a couple of the special features that Go has for working with embedded filesystems:</p>
+
+<ul>
+<li><a href="https://pkg.go.dev/io/fs#Glob"><code>fs.Glob()</code></a> returns a slice of filepaths matching a glob pattern. It&rsquo;s effectively the same as the <code>filepath.Glob()</code> function that we used earlier in the book, except that it works on embedded filesystems.</li>
+<li><a href="https://pkg.go.dev/html/template#Template.ParseFS"><code>Template.ParseFS()</code></a> can be used to parse the HTML templates from an embedded filesystem into a template set. This is effectively a replacement for <em>both</em> the <code>Template.ParseFiles()</code> and <code>Template.ParseGlob()</code> methods that we used earlier. <code>Template.ParseFiles()</code> is also a <em>variadic function</em>, which allows you to parse multiple templates in a single call to <code>ParseFiles()</code>.</li>
+</ul>
+
+<p>Let&rsquo;s put these to use in our <code>cmd/web/templates.go</code> file:</p>
+
+<figure class="code go">
+<figcaption>File: cmd/web/templates.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;html/template&#34;</span>
+    <span class="s">&#34;io/fs&#34;</span> <span class="c1">// New import
+</span><span class="c1"></span>    <span class="s">&#34;path/filepath&#34;</span>
+    <span class="s">&#34;time&#34;</span>
+
+    <span class="s">&#34;snippetbox.alexedwards.net/internal/models&#34;</span>
+    <span class="s">&#34;snippetbox.alexedwards.net/ui&#34;</span> <span class="c1">// New import
+</span><span class="c1"></span><span class="p">)</span>
+
+<span class="o">...</span>
+
+<span class="kd">func</span> <span class="nf">newTemplateCache</span><span class="p">(</span><span class="p">)</span> <span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">template</span><span class="p">.</span><span class="nx">Template</span><span class="p">,</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">cache</span> <span class="o">:=</span> <span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="o">*</span><span class="nx">template</span><span class="p">.</span><span class="nx">Template</span><span class="p">{</span><span class="p">}</span>
+
+    <span class="c1">// Use fs.Glob() to get a slice of all filepaths in the ui.Files embedded
+</span><span class="c1"></span>    <span class="c1">// filesystem which match the pattern &#39;html/pages/*.tmpl&#39;. This essentially
+</span><span class="c1"></span>    <span class="c1">// gives us a slice of all the &#39;page&#39; templates for the application, just
+</span><span class="c1"></span>    <span class="c1">// like before.
+</span><span class="c1"></span>    <span class="nx">pages</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">fs</span><span class="p">.</span><span class="nf">Glob</span><span class="p">(</span><span class="nx">ui</span><span class="p">.</span><span class="nx">Files</span><span class="p">,</span> <span class="s">&#34;html/pages/*.tmpl&#34;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+    <span class="p">}</span>
+
+    <span class="k">for</span> <span class="nx">_</span><span class="p">,</span> <span class="nx">page</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">pages</span> <span class="p">{</span>
+        <span class="nx">name</span> <span class="o">:=</span> <span class="nx">filepath</span><span class="p">.</span><span class="nf">Base</span><span class="p">(</span><span class="nx">page</span><span class="p">)</span>
+
+        <span class="c1">// Create a slice containing the filepath patterns for the templates we
+</span><span class="c1"></span>        <span class="c1">// want to parse.
+</span><span class="c1"></span>        <span class="nx">patterns</span> <span class="o">:=</span> <span class="p">[</span><span class="p">]</span><span class="kt">string</span><span class="p">{</span>
+            <span class="s">&#34;html/base.tmpl&#34;</span><span class="p">,</span>
+            <span class="s">&#34;html/partials/*.tmpl&#34;</span><span class="p">,</span>
+            <span class="nx">page</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="c1">// Use ParseFS() instead of ParseFiles() to parse the template files 
+</span><span class="c1"></span>        <span class="c1">// from the ui.Files embedded filesystem.
+</span><span class="c1"></span>        <span class="nx">ts</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">template</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">name</span><span class="p">)</span><span class="p">.</span><span class="nf">Funcs</span><span class="p">(</span><span class="nx">functions</span><span class="p">)</span><span class="p">.</span><span class="nf">ParseFS</span><span class="p">(</span><span class="nx">ui</span><span class="p">.</span><span class="nx">Files</span><span class="p">,</span> <span class="nx">patterns</span><span class="o">...</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="nx">err</span>
+        <span class="p">}</span>
+
+        <span class="nx">cache</span><span class="p">[</span><span class="nx">name</span><span class="p">]</span> <span class="p">=</span> <span class="nx">ts</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="nx">cache</span><span class="p">,</span> <span class="kc">nil</span>
+<span class="p">}</span></pre>
+</figure>
+
+<p>Now that this is done, when our application is built into a binary it will contain all the UI files that it needs to run.</p>
+
+<p>You can try this out quickly by building an executable binary in your <code>/tmp</code> directory, copying over the TLS certificates and running the binary. Like so:</p>
+
+<figure class="code bash">
+<pre>$ go build -o /tmp/web ./cmd/web/
+$ cp -r ./tls /tmp/
+$ cd /tmp/
+$ ./web 
+<samp>INFO    2022/04/01 12:43:12 Starting server on :4000</samp></pre>
+</figure>
+
+<p>And again, you should be able to visit <a href="https://localhost:4000/"><code>https://localhost:4000</code></a> in your browser and everything should work correctly &mdash; despite the binary being in a location where it does not have access to the original UI files on disk.</p>
+
+<figure class="img">
+<img src="assets/img/13.01-01.png" alt="13.01-01.png" />
+</figure>
+
+<aside class="important"><p>
+<strong>Note:</strong> If you&rsquo;d like to learn about building binaries and deploying applications, there is a lot more information and detailed explanation available in <a href="https://lets-go-further.alexedwards.net/">Let&rsquo;s Go Further</a>.
+</p></aside>
+
+			
+		</main>
+		<footer>
+			<div class="wrapper">
+				<div>
+					&lsaquo; <a href="13.00-optional-go-features.html">Previous</a>
+				</div>
+				<div>
+					<a href="00.01-contents.html">Contents</a>
+				</div>
+				<div>
+					<a href="13.02-using-generics.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</footer>
+	</body>
+</html>

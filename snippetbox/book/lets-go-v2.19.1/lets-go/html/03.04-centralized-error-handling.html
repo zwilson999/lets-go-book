@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<meta name="author" content="Alex Edwards">
+		<meta name="copyright" content="Copyright Alex Edwards 2022">
+		<title>Centralized error handling &mdash; Let's Go</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link rel="stylesheet" type="text/css" href="assets/css/main.css">
+	</head>
+	<body>
+		<header>
+			<div class="wrapper">
+				<div>
+					
+						
+						<a href="00.00-front-matter.html">Let's Go</a> <span class="crumbs">&rsaquo; <a href="03.00-configuration-and-error-handling.html">Configuration and error handling</a> &rsaquo; Centralized error handling</span>
+						
+					
+				</div>
+				<div>
+					&lsaquo; <a href="03.03-dependency-injection.html">Previous</a>
+					&middot; <a href="00.01-contents.html">Contents</a> &middot;
+					<a href="03.05-isolating-the-application-routes.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</header>
+		<main class="wrapper text">
+			<div class="chapter">Chapter 3.4.</div>
+			<h2 id="centralized-error-handling">Centralized error handling</h2>
+
+<p>Let&rsquo;s neaten up our application by moving some of the error handling code into helper methods. This will help <a href="https://deviq.com/separation-of-concerns/">separate our concerns</a> and stop us repeating code as we progress through the build.</p>
+
+<p>Go ahead and add a new <code>helpers.go</code> file under the <code>cmd/web</code> directory:</p>
+
+<figure class="code bash">
+<pre>$ cd $HOME/code/snippetbox
+$ touch cmd/web/helpers.go</pre>
+</figure>
+
+<p>And add the following code:</p>
+
+<figure class="code go">
+<figcaption>File: cmd/web/helpers.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;fmt&#34;</span>
+    <span class="s">&#34;net/http&#34;</span>
+    <span class="s">&#34;runtime/debug&#34;</span>
+<span class="p">)</span>
+
+<span class="c1">// The serverError helper writes an error message and stack trace to the errorLog,
+</span><span class="c1"></span><span class="c1">// then sends a generic 500 Internal Server Error response to the user.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">serverError</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">trace</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;%s\n%s&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="p">)</span><span class="p">,</span> <span class="nx">debug</span><span class="p">.</span><span class="nf">Stack</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">app</span><span class="p">.</span><span class="nx">errorLog</span><span class="p">.</span><span class="nf">Print</span><span class="p">(</span><span class="nx">trace</span><span class="p">)</span>
+
+    <span class="nx">http</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nf">StatusText</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">StatusInternalServerError</span><span class="p">)</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nx">StatusInternalServerError</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// The clientError helper sends a specific status code and corresponding description
+</span><span class="c1"></span><span class="c1">// to the user. We&#39;ll use this later in the book to send responses like 400 &#34;Bad
+</span><span class="c1"></span><span class="c1">// Request&#34; when there&#39;s a problem with the request that the user sent.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">clientError</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">status</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">http</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nf">StatusText</span><span class="p">(</span><span class="nx">status</span><span class="p">)</span><span class="p">,</span> <span class="nx">status</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// For consistency, we&#39;ll also implement a notFound helper. This is simply a
+</span><span class="c1"></span><span class="c1">// convenience wrapper around clientError which sends a 404 Not Found response to
+</span><span class="c1"></span><span class="c1">// the user.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">notFound</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">app</span><span class="p">.</span><span class="nf">clientError</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nx">StatusNotFound</span><span class="p">)</span>
+<span class="p">}</span></pre>
+</figure>
+
+<p>There&rsquo;s not a huge amount of new code here, but it does introduce a couple of features which are worth discussing.</p>
+
+<ul>
+<li><p>In the <code>serverError()</code> helper we use the <a href="https://pkg.go.dev/runtime/debug/#Stack"><code>debug.Stack()</code></a> function to get a <em>stack trace</em> for the <em>current goroutine</em> and append it to the log message. Being able to see the execution path of the application via the stack trace can be helpful when you&rsquo;re trying to debug errors.</p></li>
+
+<li><p>In the <code>clientError()</code> helper we use the <a href="https://pkg.go.dev/net/http/#StatusText"><code>http.StatusText()</code></a> function to automatically generate a human-friendly text representation of a given HTTP status code. For example, <code>http.StatusText(400)</code> will return the string <code>&quot;Bad Request&quot;</code>.</p></li>
+</ul>
+
+<p>Once that&rsquo;s done, head back to your <code>handlers.go</code> file and update it to use the new helpers:</p>
+
+<figure class="code go">
+<figcaption>File: cmd/web/handlers.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;fmt&#34;</span>
+    <span class="s">&#34;html/template&#34;</span>
+    <span class="s">&#34;net/http&#34;</span>
+    <span class="s">&#34;strconv&#34;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">home</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="nx">r</span><span class="p">.</span><span class="nx">URL</span><span class="p">.</span><span class="nx">Path</span> <span class="o">!=</span> <span class="s">&#34;/&#34;</span> <span class="p">{</span>
+        <span class="nx">app</span><span class="p">.</span><span class="nf">notFound</span><span class="p">(</span><span class="nx">w</span><span class="p">)</span> <span class="c1">// Use the notFound() helper
+</span><span class="c1"></span>        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">files</span> <span class="o">:=</span> <span class="p">[</span><span class="p">]</span><span class="kt">string</span><span class="p">{</span>
+        <span class="s">&#34;./ui/html/base.tmpl&#34;</span><span class="p">,</span>
+        <span class="s">&#34;./ui/html/partials/nav.tmpl&#34;</span><span class="p">,</span>
+        <span class="s">&#34;./ui/html/pages/home.tmpl&#34;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="nx">ts</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">template</span><span class="p">.</span><span class="nf">ParseFiles</span><span class="p">(</span><span class="nx">files</span><span class="o">...</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="nx">app</span><span class="p">.</span><span class="nf">serverError</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span> <span class="c1">// Use the serverError() helper.
+</span><span class="c1"></span>        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">err</span> <span class="p">=</span> <span class="nx">ts</span><span class="p">.</span><span class="nf">ExecuteTemplate</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="s">&#34;base&#34;</span><span class="p">,</span> <span class="kc">nil</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="nx">app</span><span class="p">.</span><span class="nf">serverError</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span> <span class="c1">// Use the serverError() helper.
+</span><span class="c1"></span>    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">snippetView</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">id</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">strconv</span><span class="p">.</span><span class="nf">Atoi</span><span class="p">(</span><span class="nx">r</span><span class="p">.</span><span class="nx">URL</span><span class="p">.</span><span class="nf">Query</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="s">&#34;id&#34;</span><span class="p">)</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">||</span> <span class="nx">id</span> <span class="p">&lt;</span> <span class="mi">1</span> <span class="p">{</span>
+        <span class="nx">app</span><span class="p">.</span><span class="nf">notFound</span><span class="p">(</span><span class="nx">w</span><span class="p">)</span> <span class="c1">// Use the notFound() helper.
+</span><span class="c1"></span>        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">fmt</span><span class="p">.</span><span class="nf">Fprintf</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="s">&#34;Display a specific snippet with ID %d...&#34;</span><span class="p">,</span> <span class="nx">id</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">snippetCreate</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="nx">r</span><span class="p">.</span><span class="nx">Method</span> <span class="o">!=</span> <span class="nx">http</span><span class="p">.</span><span class="nx">MethodPost</span> <span class="p">{</span>
+        <span class="nx">w</span><span class="p">.</span><span class="nf">Header</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="s">&#34;Allow&#34;</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nx">MethodPost</span><span class="p">)</span>
+        <span class="nx">app</span><span class="p">.</span><span class="nf">clientError</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nx">StatusMethodNotAllowed</span><span class="p">)</span> <span class="c1">// Use the clientError() helper.
+</span><span class="c1"></span>        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Create a new snippet...&#34;</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span></pre>
+</figure>
+
+<p>When that&rsquo;s updated, restart your application and make a request to <a href="http://localhost:4000/"><code>http://localhost:4000</code></a> in your browser.</p>
+
+<p>Again, this should result in our (deliberate) error being raised and you should see the corresponding error message and stack trace in your terminal:</p>
+
+<figure class="code bash">
+<pre>$ go run ./cmd/web
+<samp>INFO    2022/01/29 16:22:14 Starting server on :4000
+ERROR   2022/01/29 16:22:19 helpers.go:13: open ./ui/html/pages/home.tmpl: no such file or directory
+goroutine 6 [running]:
+runtime/debug.Stack()
+        /usr/local/go/src/runtime/debug/stack.go:24 +0x65
+main.(*application).serverError(0xc000012ca0, {0x79eb70, 0xc0001481c0}, {0x798180, 0xc000101830})
+        /home/alex/Desktop/snippetbox.v2/cmd/web/helpers.go:12 +0x66
+main.(*application).home(0xc000151a30, {0x79eb70, 0xc0001481c0}, 0x0)
+        /home/alex/Desktop/snippetbox.v2/cmd/web/handlers.go:24 +0x194
+net/http.HandlerFunc.ServeHTTP(0x0, {0x79eb70, 0xc0001481c0}, 0x0)
+        /usr/local/go/src/net/http/server.go:2046 +0x2f
+net/http.(*ServeMux).ServeHTTP(0x0, {0x79eb70, 0xc0001481c0}, 0xc000170000)
+        /usr/local/go/src/net/http/server.go:2424 +0x149
+net/http.serverHandler.ServeHTTP({0xc000101170}, {0x79eb70, 0xc0001481c0}, 0xc000170000)
+        /usr/local/go/src/net/http/server.go:2878 +0x43b
+net/http.(*conn).serve(0xc000110e60, {0x79fdc0, 0xc000101080})
+        /usr/local/go/src/net/http/server.go:1929 +0xb08
+created by net/http.(*Server).Serve
+        /usr/local/go/src/net/http/server.go:3033 +0x4e8</samp></pre>
+</figure>
+
+<p>If you look closely at this you&rsquo;ll notice a small problem: the file name and line number being reported in the <code>ERROR</code> log line is now <code>helpers.go:13</code> &mdash; because this is where the log message is now being written from.</p>
+
+<p>What we want to report is the file name and line number <em>one step back</em> in the stack trace, which would give us a clearer idea of where the error actually originated from.</p>
+
+<p>We can do this by changing the <code>serverError()</code>  helper to use our logger&rsquo;s <a href="https://pkg.go.dev/log/#Logger.Output"><code>Output()</code></a> function and setting the <dfn>frame depth</dfn> to 2. Reopen your <code>helpers.go</code> file and update it like so:</p>
+
+<figure class="code go">
+<figcaption>File: cmd/web/helpers.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="o">...</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">serverError</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">err</span> <span class="kt">error</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">trace</span> <span class="o">:=</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;%s\n%s&#34;</span><span class="p">,</span> <span class="nx">err</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="p">)</span><span class="p">,</span> <span class="nx">debug</span><span class="p">.</span><span class="nf">Stack</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">app</span><span class="p">.</span><span class="nx">errorLog</span><span class="p">.</span><span class="nf">Output</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="nx">trace</span><span class="p">)</span>
+
+    <span class="nx">http</span><span class="p">.</span><span class="nf">Error</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nf">StatusText</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">StatusInternalServerError</span><span class="p">)</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nx">StatusInternalServerError</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="o">...</span></pre>
+</figure>
+
+<p>And if you try again now, you should find that the appropriate file name and line number (<code>handlers.go:24</code>) is being reported in the <code>ERROR</code> log line:</p>
+
+<figure class="code bash">
+<pre>$ go run ./cmd/web
+<samp>INFO    2022/01/29 16:24:00 Starting server on :4000
+ERROR   2022/01/29 16:24:02 handlers.go:24: open ./ui/html/pages/home.tmpl: no such file or directory
+goroutine 6 [running]:
+runtime/debug.Stack()
+        /usr/local/go/src/runtime/debug/stack.go:24 +0x65
+main.(*application).serverError(0xc000012ca0, {0x79eb90, 0xc0001481c0}, {0x798180, 0xc000101830})
+        /home/alex/Desktop/snippetbox.v2/cmd/web/helpers.go:10 +0x58
+main.(*application).home(0xc000151a30, {0x79eb90, 0xc0001481c0}, 0x0)
+        /home/alex/Desktop/snippetbox.v2/cmd/web/handlers.go:24 +0x194
+net/http.HandlerFunc.ServeHTTP(0x0, {0x79eb90, 0xc0001481c0}, 0x0)
+        /usr/local/go/src/net/http/server.go:2046 +0x2f
+net/http.(*ServeMux).ServeHTTP(0x0, {0x79eb90, 0xc0001481c0}, 0xc000170000)
+        /usr/local/go/src/net/http/server.go:2424 +0x149
+net/http.serverHandler.ServeHTTP({0xc000101170}, {0x79eb90, 0xc0001481c0}, 0xc000170000)
+        /usr/local/go/src/net/http/server.go:2878 +0x43b
+net/http.(*conn).serve(0xc000110f00, {0x79fde0, 0xc000101080})
+        /usr/local/go/src/net/http/server.go:1929 +0xb08
+created by net/http.(*Server).Serve
+        /usr/local/go/src/net/http/server.go:3033 +0x4e8</samp></pre>
+</figure>
+
+<h3 id="revert-the-deliberate-error">Revert the deliberate error</h3>
+
+<p>At this point we don&rsquo;t need the deliberate error anymore, so go ahead and fix it like so:</p>
+
+<figure class="code bash">
+<pre>$ cd $HOME/code/snippetbox
+$ mv ui/html/pages/home.bak ui/html/pages/home.tmpl</pre>
+</figure>
+
+			
+		</main>
+		<footer>
+			<div class="wrapper">
+				<div>
+					&lsaquo; <a href="03.03-dependency-injection.html">Previous</a>
+				</div>
+				<div>
+					<a href="00.01-contents.html">Contents</a>
+				</div>
+				<div>
+					<a href="03.05-isolating-the-application-routes.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</footer>
+	</body>
+</html>

@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<meta name="author" content="Alex Edwards">
+		<meta name="copyright" content="Copyright Alex Edwards 2022">
+		<title>Clean URLs and method-based routing &mdash; Let's Go</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<link rel="stylesheet" type="text/css" href="assets/css/main.css">
+	</head>
+	<body>
+		<header>
+			<div class="wrapper">
+				<div>
+					
+						
+						<a href="00.00-front-matter.html">Let's Go</a> <span class="crumbs">&rsaquo; <a href="07.00-advanced-routing.html">Advanced routing</a> &rsaquo; Clean URLs and method-based routing</span>
+						
+					
+				</div>
+				<div>
+					&lsaquo; <a href="07.01-choosing-a-router.html">Previous</a>
+					&middot; <a href="00.01-contents.html">Contents</a> &middot;
+					<a href="08.00-processing-forms.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</header>
+		<main class="wrapper text">
+			<div class="chapter">Chapter 7.2.</div>
+			<h2 id="clean-urls-and-method-based-routing">Clean URLs and method-based routing</h2>
+
+<p>If you&rsquo;re following along, please go ahead and install the latest version of <code>httprouter</code> like so:</p>
+
+<figure class="code bash">
+<pre>$ go get github.com/julienschmidt/httprouter@v1
+<samp>go: downloading github.com/julienschmidt/httprouter v1.3.0</samp></pre>
+</figure>
+
+<p>Before we get into the nitty-gritty of actually using <code>httprouter</code>, let&rsquo;s begin with a simple example to help demonstrate and explain the syntax:</p>
+
+<figure class="code go">
+<pre><span class="nx">router</span> <span class="o">:=</span> <span class="nx">httprouter</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="p">)</span>
+<span class="nx">router</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/snippet/view/:id&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippetView</span><span class="p">)</span></pre>
+</figure>
+
+<p>In this example:</p>
+
+<ul>
+<li><p>We initialize the <code>httprouter</code> router and then use the <a href="https://pkg.go.dev/github.com/julienschmidt/httprouter?utm_source=godoc#Router.HandlerFunc"><code>HandlerFunc()</code></a> method to add a new route which dispatches requests to our <code>snippetView</code> handler function.</p>
+
+<aside class="note"><p>
+<strong>Note:</strong> <code>httprouter</code> also provides a <a href="https://pkg.go.dev/github.com/julienschmidt/httprouter?utm_source=godoc#Router.Handler"><code>Handler()</code></a> method that you can use to dispatch requests to a regular <code>http.Handler</code> (like our static file server).
+</p></aside></li>
+
+<li><p>The first argument to <code>HandlerFunc()</code> is the HTTP method that the request needs to have to be considered a matching request. Note that we&rsquo;re using the constant <code>http.MethodGet</code> here rather than the string <code>&quot;GET&quot;</code>.</p></li>
+
+<li><p>The second argument is the pattern that the request URL path must match.</p>
+
+<p>Patterns can include <em>named parameters</em> in the form <code>:name</code>, which act like a wildcard for a specific path segment. A request with a URL path like <code>/snippet/view/123</code> or <code>/snippet/view/foo</code> would match our example pattern <code>/snippet/view/:id</code>, but a request for <code>/snippet/bar</code> or <code>/snippet/view/foo/baz</code> wouldn&rsquo;t.</p>
+
+<p>Patterns can also include a single <em>catch-all</em> parameter in the form <code>*name</code>. These match <em>everything</em> and should be used at the end of a pattern, like as <code>/static/*filepath</code>.</p>
+
+<p>The pattern <code>&quot;/&quot;</code> will only match requests where the URL path is exactly <code>&quot;/&quot;</code>.</p></li>
+</ul>
+
+<p>With all that in mind, let&rsquo;s head over to our <code>routes.go</code> file and update it so it uses <code>httprouter</code> and supports the following routes:</p>
+
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Pattern</th>
+<th>Handler</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>GET</td>
+<td>/</td>
+<td>home</td>
+<td>Display the home page</td>
+</tr>
+
+<tr>
+<td>GET</td>
+<td><span>/snippet/view/:id</span></td>
+<td>snippetView</td>
+<td>Display a specific snippet</td>
+</tr>
+
+<tr>
+<td>GET</td>
+<td>/snippet/create</td>
+<td>snippetCreate</td>
+<td>Display a HTML form for creating a new snippet</td>
+</tr>
+
+<tr>
+<td>POST</td>
+<td>/snippet/create</td>
+<td>snippetCreatePost</td>
+<td>Create a new snippet</td>
+</tr>
+
+<tr>
+<td>GET</td>
+<td><span>/static/*filepath</span></td>
+<td>http.FileServer</td>
+<td>Serve a specific static file</td>
+</tr>
+</tbody>
+</table>
+
+<figure class="code go">
+<figcaption>File: cmd/web/routes.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;net/http&#34;</span>
+
+    <span class="s">&#34;github.com/julienschmidt/httprouter&#34;</span> <span class="c1">// New import
+</span><span class="c1"></span>    <span class="s">&#34;github.com/justinas/alice&#34;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">routes</span><span class="p">(</span><span class="p">)</span> <span class="nx">http</span><span class="p">.</span><span class="nx">Handler</span> <span class="p">{</span>
+    <span class="c1">// Initialize the router.
+</span><span class="c1"></span>    <span class="nx">router</span> <span class="o">:=</span> <span class="nx">httprouter</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="p">)</span>
+
+    <span class="c1">// Update the pattern for the route for the static files.
+</span><span class="c1"></span>    <span class="nx">fileServer</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">FileServer</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nf">Dir</span><span class="p">(</span><span class="s">&#34;./ui/static/&#34;</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/static/*filepath&#34;</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nf">StripPrefix</span><span class="p">(</span><span class="s">&#34;/static&#34;</span><span class="p">,</span> <span class="nx">fileServer</span><span class="p">)</span><span class="p">)</span>
+
+    <span class="c1">// And then create the routes using the appropriate methods, patterns and 
+</span><span class="c1"></span>    <span class="c1">// handlers.
+</span><span class="c1"></span>    <span class="nx">router</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">home</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/snippet/view/:id&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippetView</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/snippet/create&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippetCreate</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodPost</span><span class="p">,</span> <span class="s">&#34;/snippet/create&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippetCreatePost</span><span class="p">)</span>
+
+    <span class="c1">// Create the middleware chain as normal.
+</span><span class="c1"></span>    <span class="nx">standard</span> <span class="o">:=</span> <span class="nx">alice</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">recoverPanic</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">logRequest</span><span class="p">,</span> <span class="nx">secureHeaders</span><span class="p">)</span>
+
+    <span class="c1">// Wrap the router with the middleware and return it as normal.
+</span><span class="c1"></span>    <span class="k">return</span> <span class="nx">standard</span><span class="p">.</span><span class="nf">Then</span><span class="p">(</span><span class="nx">router</span><span class="p">)</span>
+<span class="p">}</span></pre>
+</figure>
+
+<p>Now that&rsquo;s done, there&rsquo;s are a few changes we need to make to our <code>handlers.go</code> file. Go ahead and update it as follows:</p>
+
+<figure class="code go">
+<figcaption>File: cmd/web/handlers.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;errors&#34;</span>
+    <span class="s">&#34;fmt&#34;</span>
+    <span class="s">&#34;net/http&#34;</span>
+    <span class="s">&#34;strconv&#34;</span>
+
+    <span class="s">&#34;snippetbox.alexedwards.net/internal/models&#34;</span>
+
+    <span class="s">&#34;github.com/julienschmidt/httprouter&#34;</span> <span class="c1">// New import
+</span><span class="c1"></span><span class="p">)</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">home</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// Because httprouter matches the &#34;/&#34; path exactly, we can now remove the
+</span><span class="c1"></span>    <span class="c1">// manual check of r.URL.Path != &#34;/&#34; from this handler.
+</span><span class="c1"></span>
+    <span class="nx">snippets</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippets</span><span class="p">.</span><span class="nf">Latest</span><span class="p">(</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="nx">app</span><span class="p">.</span><span class="nf">serverError</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">data</span> <span class="o">:=</span> <span class="nx">app</span><span class="p">.</span><span class="nf">newTemplateData</span><span class="p">(</span><span class="nx">r</span><span class="p">)</span>
+    <span class="nx">data</span><span class="p">.</span><span class="nx">Snippets</span> <span class="p">=</span> <span class="nx">snippets</span>
+
+    <span class="nx">app</span><span class="p">.</span><span class="nf">render</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nx">StatusOK</span><span class="p">,</span> <span class="s">&#34;home.tmpl&#34;</span><span class="p">,</span> <span class="nx">data</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">snippetView</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// When httprouter is parsing a request, the values of any named parameters
+</span><span class="c1"></span>    <span class="c1">// will be stored in the request context. We&#39;ll talk about request context
+</span><span class="c1"></span>    <span class="c1">// in detail later in the book, but for now it&#39;s enough to know that you can
+</span><span class="c1"></span>    <span class="c1">// use the ParamsFromContext() function to retrieve a slice containing these
+</span><span class="c1"></span>    <span class="c1">// parameter names and values like so:
+</span><span class="c1"></span>    <span class="nx">params</span> <span class="o">:=</span> <span class="nx">httprouter</span><span class="p">.</span><span class="nf">ParamsFromContext</span><span class="p">(</span><span class="nx">r</span><span class="p">.</span><span class="nf">Context</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+
+    <span class="c1">// We can then use the ByName() method to get the value of the &#34;id&#34; named
+</span><span class="c1"></span>    <span class="c1">// parameter from the slice and validate it as normal.
+</span><span class="c1"></span>    <span class="nx">id</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">strconv</span><span class="p">.</span><span class="nf">Atoi</span><span class="p">(</span><span class="nx">params</span><span class="p">.</span><span class="nf">ByName</span><span class="p">(</span><span class="s">&#34;id&#34;</span><span class="p">)</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="o">||</span> <span class="nx">id</span> <span class="p">&lt;</span> <span class="mi">1</span> <span class="p">{</span>
+        <span class="nx">app</span><span class="p">.</span><span class="nf">notFound</span><span class="p">(</span><span class="nx">w</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">snippet</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippets</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="nx">id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="nx">errors</span><span class="p">.</span><span class="nf">Is</span><span class="p">(</span><span class="nx">err</span><span class="p">,</span> <span class="nx">models</span><span class="p">.</span><span class="nx">ErrNoRecord</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">app</span><span class="p">.</span><span class="nf">notFound</span><span class="p">(</span><span class="nx">w</span><span class="p">)</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+            <span class="nx">app</span><span class="p">.</span><span class="nf">serverError</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="nx">data</span> <span class="o">:=</span> <span class="nx">app</span><span class="p">.</span><span class="nf">newTemplateData</span><span class="p">(</span><span class="nx">r</span><span class="p">)</span>
+    <span class="nx">data</span><span class="p">.</span><span class="nx">Snippet</span> <span class="p">=</span> <span class="nx">snippet</span>
+
+    <span class="nx">app</span><span class="p">.</span><span class="nf">render</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nx">StatusOK</span><span class="p">,</span> <span class="s">&#34;view.tmpl&#34;</span><span class="p">,</span> <span class="nx">data</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// Add a new snippetCreate handler, which for now returns a placeholder
+</span><span class="c1"></span><span class="c1">// response. We&#39;ll update this shortly to show a HTML form.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">snippetCreate</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">w</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="p">[</span><span class="p">]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&#34;Display the form for creating a new snippet...&#34;</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// Rename this handler to snippetCreatePost.
+</span><span class="c1"></span><span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">snippetCreatePost</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// Checking if the request method is a POST is now superfluous and can be
+</span><span class="c1"></span>    <span class="c1">// removed, because this is done automatically by httprouter.
+</span><span class="c1"></span>
+    <span class="nx">title</span> <span class="o">:=</span> <span class="s">&#34;O snail&#34;</span>
+    <span class="nx">content</span> <span class="o">:=</span> <span class="s">&#34;O snail\nClimb Mount Fuji,\nBut slowly, slowly!\n\n– Kobayashi Issa&#34;</span>
+    <span class="nx">expires</span> <span class="o">:=</span> <span class="mi">7</span>
+
+    <span class="nx">id</span><span class="p">,</span> <span class="nx">err</span> <span class="o">:=</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippets</span><span class="p">.</span><span class="nf">Insert</span><span class="p">(</span><span class="nx">title</span><span class="p">,</span> <span class="nx">content</span><span class="p">,</span> <span class="nx">expires</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nx">err</span> <span class="o">!=</span> <span class="kc">nil</span> <span class="p">{</span>
+        <span class="nx">app</span><span class="p">.</span><span class="nf">serverError</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">err</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Update the redirect path to use the new clean URL format.
+</span><span class="c1"></span>    <span class="nx">http</span><span class="p">.</span><span class="nf">Redirect</span><span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">r</span><span class="p">,</span> <span class="nx">fmt</span><span class="p">.</span><span class="nf">Sprintf</span><span class="p">(</span><span class="s">&#34;/snippet/view/%d&#34;</span><span class="p">,</span> <span class="nx">id</span><span class="p">)</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nx">StatusSeeOther</span><span class="p">)</span>
+<span class="p">}</span></pre>
+</figure>
+
+<p>Finally, we need to update the table in our <code>home.tmpl</code> file so that the links in the HTML also use the new clean URL style of <code>/snippet/view/:id</code>.</p>
+
+<figure class="code html">
+<pre>{{define &#34;title&#34;}}Home{{end}}
+
+{{define &#34;main&#34;}}
+    <span class="p">&lt;</span><span class="nt">h2</span><span class="p"></span><span class="p">&gt;</span>Latest Snippets<span class="p">&lt;</span><span class="p">/</span><span class="nt">h2</span><span class="p">&gt;</span>
+    {{if .Snippets}}
+     <span class="p">&lt;</span><span class="nt">table</span><span class="p"></span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="nt">tr</span><span class="p"></span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">th</span><span class="p"></span><span class="p">&gt;</span>Title<span class="p">&lt;</span><span class="p">/</span><span class="nt">th</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">th</span><span class="p"></span><span class="p">&gt;</span>Created<span class="p">&lt;</span><span class="p">/</span><span class="nt">th</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">th</span><span class="p"></span><span class="p">&gt;</span>ID<span class="p">&lt;</span><span class="p">/</span><span class="nt">th</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="p">/</span><span class="nt">tr</span><span class="p">&gt;</span>
+        {{range .Snippets}}
+        <span class="p">&lt;</span><span class="nt">tr</span><span class="p"></span><span class="p">&gt;</span>
+            <span class="c">&lt;!--</span><span class="c"> Use the new clean URL style</span><span class="c">--&gt;</span>
+            <span class="p">&lt;</span><span class="nt">td</span><span class="p"></span><span class="p">&gt;</span><span class="p">&lt;</span><span class="nt">a</span> <span class="na">href</span><span class="o">=</span><span class="s">&#39;/snippet/view/{{.ID}}&#39;</span><span class="p"></span><span class="p">&gt;</span>{{.Title}}<span class="p">&lt;</span><span class="p">/</span><span class="nt">a</span><span class="p">&gt;</span><span class="p">&lt;</span><span class="p">/</span><span class="nt">td</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">td</span><span class="p"></span><span class="p">&gt;</span>{{humanDate .Created}}<span class="p">&lt;</span><span class="p">/</span><span class="nt">td</span><span class="p">&gt;</span>
+            <span class="p">&lt;</span><span class="nt">td</span><span class="p"></span><span class="p">&gt;</span>#{{.ID}}<span class="p">&lt;</span><span class="p">/</span><span class="nt">td</span><span class="p">&gt;</span>
+        <span class="p">&lt;</span><span class="p">/</span><span class="nt">tr</span><span class="p">&gt;</span>
+        {{end}}
+    <span class="p">&lt;</span><span class="p">/</span><span class="nt">table</span><span class="p">&gt;</span>
+    {{else}}
+        <span class="p">&lt;</span><span class="nt">p</span><span class="p"></span><span class="p">&gt;</span>There&#39;s nothing to see here... yet!<span class="p">&lt;</span><span class="p">/</span><span class="nt">p</span><span class="p">&gt;</span>
+    {{end}}
+{{end}}</pre>
+</figure>
+
+<p>With that done, restart the application and you should now be able to  view the text snippets via the clean URLs. For instance: <a href="http://localhost:4000/snippet/view/1"><code>http://localhost:4000/snippet/view/1</code></a>.</p>
+
+<figure class="img">
+<img src="assets/img/07.02-01.png" alt="07.02-01.png" />
+</figure>
+
+<p>You can also see that requests using an unsupported HTTP method are met with a <code>405 Method Not Allowed</code> response. For example, try making a <code>POST</code> request to the same URL using curl:</p>
+
+<figure class="code bash">
+<pre>$ curl -i -X POST http://localhost:4000/snippet/view/1
+<samp>HTTP/1.1 405 Method Not Allowed
+Allow: GET, OPTIONS
+Content-Security-Policy: default-src &#39;self&#39;; style-src &#39;self&#39; fonts.googleapis.com; font-src fonts.gstatic.com
+Content-Type: text/plain; charset=utf-8
+Referrer-Policy: origin-when-cross-origin
+X-Content-Type-Options: nosniff
+X-Frame-Options: deny
+X-Xss-Protection: 0
+Date: Sun, 06 Feb 2022 21:06:59 GMT
+Content-Length: 19
+
+Method Not Allowed</samp></pre>
+</figure>
+
+<h3 id="custom-error-handlers">Custom error handlers</h3>
+
+<p>Before we continue, you might also like to try making the following two requests:</p>
+
+<figure class="code bash">
+<pre>$ curl http://localhost:4000/snippet/view/99
+<samp>Not Found</samp>
+
+$ curl http://localhost:4000/missing
+<samp>404 page not found</samp></pre>
+</figure>
+
+<p>So that&rsquo;s a bit strange. We can see that both requests result in <code>404</code> responses, but they have slightly different response bodies.</p>
+
+<p>This is happening because the first request ends up calling out to our <code>app.notFound()</code> helper when no snippet with ID <code>99</code> can be found, whereas the second response is returned automatically by <code>httprouter</code> when no matching route is found.</p>
+
+<p>Fortunately <code>httprouter</code> makes it easy to set a custom handler for dealing with <code>404</code> responses, like so:</p>
+
+<figure class="code go">
+<figcaption>File: cmd/web/routes.go</figcaption>
+<pre><span class="kn">package</span> <span class="nx">main</span>
+
+<span class="kn">import</span> <span class="p">(</span>
+    <span class="s">&#34;net/http&#34;</span>
+
+    <span class="s">&#34;github.com/julienschmidt/httprouter&#34;</span>
+    <span class="s">&#34;github.com/justinas/alice&#34;</span>
+<span class="p">)</span>
+
+<span class="kd">func</span> <span class="p">(</span><span class="nx">app</span> <span class="o">*</span><span class="nx">application</span><span class="p">)</span> <span class="nf">routes</span><span class="p">(</span><span class="p">)</span> <span class="nx">http</span><span class="p">.</span><span class="nx">Handler</span> <span class="p">{</span>
+    <span class="nx">router</span> <span class="o">:=</span> <span class="nx">httprouter</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="p">)</span>
+
+    <span class="c1">// Create a handler function which wraps our notFound() helper, and then
+</span><span class="c1"></span>    <span class="c1">// assign it as the custom handler for 404 Not Found responses. You can also
+</span><span class="c1"></span>    <span class="c1">// set a custom handler for 405 Method Not Allowed responses by setting
+</span><span class="c1"></span>    <span class="c1">// router.MethodNotAllowed in the same way too.
+</span><span class="c1"></span>    <span class="nx">router</span><span class="p">.</span><span class="nx">NotFound</span> <span class="p">=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="kd">func</span><span class="p">(</span><span class="nx">w</span> <span class="nx">http</span><span class="p">.</span><span class="nx">ResponseWriter</span><span class="p">,</span> <span class="nx">r</span> <span class="o">*</span><span class="nx">http</span><span class="p">.</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">app</span><span class="p">.</span><span class="nf">notFound</span><span class="p">(</span><span class="nx">w</span><span class="p">)</span>
+    <span class="p">}</span><span class="p">)</span>
+
+    <span class="nx">fileServer</span> <span class="o">:=</span> <span class="nx">http</span><span class="p">.</span><span class="nf">FileServer</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nf">Dir</span><span class="p">(</span><span class="s">&#34;./ui/static/&#34;</span><span class="p">)</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">Handler</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/static/*filepath&#34;</span><span class="p">,</span> <span class="nx">http</span><span class="p">.</span><span class="nf">StripPrefix</span><span class="p">(</span><span class="s">&#34;/static&#34;</span><span class="p">,</span> <span class="nx">fileServer</span><span class="p">)</span><span class="p">)</span>
+
+    <span class="nx">router</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">home</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/snippet/view/:id&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippetView</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodGet</span><span class="p">,</span> <span class="s">&#34;/snippet/create&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippetCreate</span><span class="p">)</span>
+    <span class="nx">router</span><span class="p">.</span><span class="nf">HandlerFunc</span><span class="p">(</span><span class="nx">http</span><span class="p">.</span><span class="nx">MethodPost</span><span class="p">,</span> <span class="s">&#34;/snippet/create&#34;</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">snippetCreatePost</span><span class="p">)</span>
+
+    <span class="nx">standard</span> <span class="o">:=</span> <span class="nx">alice</span><span class="p">.</span><span class="nf">New</span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">recoverPanic</span><span class="p">,</span> <span class="nx">app</span><span class="p">.</span><span class="nx">logRequest</span><span class="p">,</span> <span class="nx">secureHeaders</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nx">standard</span><span class="p">.</span><span class="nf">Then</span><span class="p">(</span><span class="nx">router</span><span class="p">)</span>
+<span class="p">}</span></pre>
+</figure>
+
+<p>If you restart the application and try making the same requests again, you&rsquo;ll find that the responses now match.</p>
+
+<figure class="code bash">
+<pre>$ curl http://localhost:4000/snippet/view/99
+<samp>Not Found</samp>
+
+$ curl http://localhost:4000/missing
+<samp>Not Found</samp></pre>
+</figure>
+
+<hr />
+
+<h3 id="additional-information">Additional information</h3>
+
+<h4 id="conflicting-route-patterns">Conflicting route patterns</h4>
+
+<p>It&rsquo;s important to be aware that <code>httprouter</code> doesn&rsquo;t allow <em>conflicting route patterns</em> which potentially match the same request. So, for example, you cannot register a route like <code>GET /foo/new</code> <em>and</em> another route with a named parameter segment or catch-all parameter that conflicts with it &mdash; like <code>GET /foo/:name</code> or <code>GET /foo/*name</code>.</p>
+
+<p>In most cases this is a positive thing. Because conflicting routes aren&rsquo;t allowed, there are no routing-priority rules that you need to worry about, and it reduces the risk of bugs and unintended behavior in your application.</p>
+
+<p>But if you do need to support conflicting routes (for example, you might need to replicate the endpoints of an existing application exactly for backwards-compatibility), then I would recommend using <code>chi</code> or <code>gorilla/mux</code> instead &mdash; both of which <em>do</em> permit conflicting routes.</p>
+
+<h4 id="customizing-httprouter-behavior">Customizing httprouter behavior</h4>
+
+<p>The <code>httprouter</code> package provides a few configuration options that you can use to customize the behavior of your application further, including enabling <em>trailing slash redirects</em> and enabling <em>automatic URL path cleaning</em>.</p>
+
+<p>More information about the available settings can be found <a href="https://pkg.go.dev/github.com/julienschmidt/httprouter?tab=doc#Router">here</a>.</p>
+
+<h4 id="restful-routing">Restful routing</h4>
+
+<p>If you&rsquo;ve got a background in Ruby-on-Rails, Laravel or similar, you might be wondering why we aren&rsquo;t structuring our routes and handlers to be more &lsquo;RESTful&rsquo; and look like this:</p>
+
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Pattern</th>
+<th>Handler</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>GET</td>
+<td>/snippets</td>
+<td>snippetIndex</td>
+<td>Display a list of all snippets</td>
+</tr>
+
+<tr>
+<td>GET</td>
+<td>/snippets/:id</td>
+<td>snippetView</td>
+<td>Display a specific snippet</td>
+</tr>
+
+<tr>
+<td>GET</td>
+<td>/snippets/new</td>
+<td>snippetNew</td>
+<td>Display a HTML form for creating a new snippet</td>
+</tr>
+
+<tr>
+<td>POST</td>
+<td>/snippets</td>
+<td>snippetCreate</td>
+<td>Create a new snippet</td>
+</tr>
+
+<tr>
+<td>&hellip;</td>
+<td>&hellip;</td>
+<td>&hellip;</td>
+<td>&hellip;</td>
+</tr>
+</tbody>
+</table>
+<p>There are a couple of reasons.</p>
+
+<p>The first reason is that the <code>GET /snippets/:id</code> and <code>GET /snippets/new</code> routes <em>conflict</em> with each other &mdash; a HTTP request to <code>/snippets/new</code> potentially matches both routes (with the <code>id</code> value being set to the string <code>&quot;new&quot;</code>). As mentioned above, <code>httprouter</code> doesn&rsquo;t allow conflicting route patterns, and it&rsquo;s generally good practice to avoid them anyway because they are a potential source of bugs.</p>
+
+<p>The second reason is that the HTML form presented on <code>/snippets/new</code> would need to post to <code>/snippets</code> when submitted. This means that when we re-render the HTML form to show any validation errors, the URL in the user&rsquo;s browser will also change to <code>/snippets</code>. YMMV on whether you consider this a problem or not. Most users don&rsquo;t look at URLs, but I think it&rsquo;s a bit clunky and confusing in terms of UX &mdash; especially if a <code>GET</code> request to <code>/snippets</code> normally renders something else (like a list of all snippets).</p>
+
+<h4 id="handler-naming">Handler naming</h4>
+
+<p>I&rsquo;d also like to emphasize that there is no right or wrong way to name your handlers in Go.</p>
+
+<p>In this project, we&rsquo;ll follow the convention of postfixing the names of any handlers that deal with <code>POST</code> requests with the word &lsquo;Post&rsquo;. Like so:</p>
+
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Pattern</th>
+<th>Handler</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>GET</td>
+<td>/snippet/create</td>
+<td>snippetCreate</td>
+<td>Display a HTML form for creating a new snippet</td>
+</tr>
+
+<tr>
+<td>POST</td>
+<td>/snippet/create</td>
+<td>snippetCreate<strong>Post</strong></td>
+<td>Create a new snippet</td>
+</tr>
+</tbody>
+</table>
+<p>Alternatively, you could postfix the names of any handlers that display forms with the word &lsquo;Form&rsquo; or &lsquo;View&rsquo;, like this:</p>
+
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Pattern</th>
+<th>Handler</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>GET</td>
+<td>/snippet/create</td>
+<td>snippetCreate<strong>Form</strong></td>
+<td>Display a HTML form for creating a new snippet</td>
+</tr>
+
+<tr>
+<td>POST</td>
+<td>/snippet/create</td>
+<td>snippetCreate</td>
+<td>Create a new snippet</td>
+</tr>
+</tbody>
+</table>
+<p>Or even prefix handler names with the words &lsquo;show&rsquo; and &lsquo;do&rsquo;&hellip;</p>
+
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Pattern</th>
+<th>Handler</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>GET</td>
+<td>/snippet/create</td>
+<td><strong>show</strong>SnippetCreate</td>
+<td>Display a HTML form for creating a new snippet</td>
+</tr>
+
+<tr>
+<td>POST</td>
+<td>/snippet/create</td>
+<td><strong>do</strong>SnippetCreate</td>
+<td>Create a new snippet</td>
+</tr>
+</tbody>
+</table>
+<p>Basically, you have the freedom in Go to choose a naming convention which works for you and fits with your brain.</p>
+
+			
+		</main>
+		<footer>
+			<div class="wrapper">
+				<div>
+					&lsaquo; <a href="07.01-choosing-a-router.html">Previous</a>
+				</div>
+				<div>
+					<a href="00.01-contents.html">Contents</a>
+				</div>
+				<div>
+					<a href="08.00-processing-forms.html">Next</a> &rsaquo;
+				</div>
+			</div>
+		</footer>
+	</body>
+</html>
