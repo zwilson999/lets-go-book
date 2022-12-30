@@ -7,39 +7,42 @@ import (
 	"os"
 )
 
+// Struct to hold application-wide dependencies for the web app.
+type application struct {
+	errorLog *log.Logger
+	infoLog  *log.Logger
+}
+
 func main() {
 
 	// Define cmd line args
+	// Port 4000 will be our default
 	addr := flag.String("addr", ":4000", "HTTP Network address")
 
 	// Parses the command line args from the user
 	// If we do not call this, it will only use the default argument set by the flag variables
 	flag.Parse()
 
-	// Create a new logger variable for info
+	// Create loggers for appropriate messages
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
-
-	// Create an error logger
 	errorLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 
-	// Createa servemux and register the home function as the handler for the root pattern
-	mux := http.NewServeMux()
+	// App dependency struct
+	app := &application{
+		errorLog: errorLog,
+		infoLog:  infoLog,
+	}
 
-	// Create a file server which serves files out of our static directory
-	// Will be relative to root of the directory
-	// Note we will also strip the static prefix to search for files within the directory
-	fileServer := http.FileServer(http.Dir("./ui/static/"))
-	mux.Handle("/static/", http.StripPrefix("/static", fileServer))
-
-	// Page routes
-	mux.HandleFunc("/", home)
-	mux.HandleFunc("/snippet/view", snippetView)
-	mux.HandleFunc("/snippet/create", snippetCreate)
+	// Initialize our own http.Server struct, so it can use our own pre-defined loggers (above)
+	srv := &http.Server{
+		Addr:     *addr,
+		ErrorLog: errorLog,
+		Handler:  app.routes(),
+	}
 
 	// Listen on a port and start the server
-	// Two parameters are passed in, the TCP network address (port :4000)
-	// and the servemux
+	// Two parameters are passed in, the TCP network address (port :4000) and the servemux
 	infoLog.Printf("Starting server on %s\n", *addr)
-	err := http.ListenAndServe(*addr, mux)
+	err := srv.ListenAndServe()
 	errorLog.Fatal(err)
 }
