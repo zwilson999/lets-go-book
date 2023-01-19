@@ -49,6 +49,15 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 		app.notFound(w) // Helper for 404s
 		return
 	}
+
+	snippet, err := app.snippets.Get(id)
+	if err != nil {
+		app.notFound(w)
+	} else {
+		app.serverError(w, err)
+	}
+	return
+
 	// Interpolate the id value with our response and write it to the client
 	fmt.Fprintf(w, "Display a specific snippet with ID %d...", id)
 }
@@ -56,10 +65,24 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 // Handler for creating snippets
 func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {
 	// If the method is not a POST, send a 405 which is a "Method not allowed" status code
-	if r.Method != "POST" {
+	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost) // Tell user which methods are available for this endpoint
 		app.clientError(w, http.StatusMethodNotAllowed)
 		return
 	}
-	w.Write([]byte("Create a new snippet..."))
+
+	// Dummy data
+	title := "O Snail"
+	content := "O snail\nCLimb Mount Fuji,\nBut slowly, slowly!\n\n- Kobayashi Issa"
+	expires := 7
+
+	// Pass the data to SnippetModel.Insert(), receiving the ID of the new record back
+	id, err := app.snippets.Insert(title, content, expires)
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	// Redirect the user to the relevant page for the snippet
+	http.Redirect(w, r, fmt.Sprintf("/snippet/view?id=%d", id), http.StatusSeeOther)
 }
