@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
+
+	"snippetbox.lets-go/internal/models"
 )
 
 // Define a home handler function which writes a byte slice containing
@@ -14,6 +17,12 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		app.notFound(w) // Helper for 404s
 		return          // Important or else page will keep running
+	}
+
+	snippets, err := app.snippets.Latest()
+	if err != nil {
+		app.serverError(w, err)
+		return
 	}
 
 	// Slice to contain our template files
@@ -31,10 +40,14 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	data := &templateData{
+		Snippets: snippets,
+	}
+
 	// We can then use the Execute method on the template set (ts) to write the template content
 	// as the response body. The last param to Execute() represents any dynamic data that we want to pass
 	// in, which for now will be nil
-	err = ts.ExecuteTemplate(w, "base", nil)
+	err = ts.ExecuteTemplate(w, "base", data)
 	if err != nil {
 		app.serverError(w, err) // Generic server error
 	}
@@ -52,14 +65,41 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 
 	snippet, err := app.snippets.Get(id)
 	if err != nil {
-		app.notFound(w)
-	} else {
+		if errors.Is(err, models.ErrNoRecord) {
+			app.notFound(w)
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
+
+	// Initialize a slice containg the paths of the view.tmpl file
+	// Plus the base layout and navigation partial
+	files := []string{
+		"./ui/html/base.tmpl",
+		"./ui/html/partials/nav.tmpl",
+		"./ui/html/pages/view.tmpl",
+	}
+
+	// Parse the template files
+	ts, err := template.ParseFiles(files...)
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	data := &templateData{
+		Snippet: snippet,
+	}
+
+	// Execute the template files
+	err = ts.ExecuteTemplate(w, "base", data)
+	if err != nil {
 		app.serverError(w, err)
 	}
-	return
 
-	// Interpolate the id value with our response and write it to the client
-	fmt.Fprintf(w, "Display a specific snippet with ID %d...", id)
+	// Write the snippet data as a plain-text HTTP response body
+	fmt.Fprintf(w, "%+v", snippet)
 }
 
 // Handler for creating snippets
@@ -73,7 +113,7 @@ func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {
 
 	// Dummy data
 	title := "O Snail"
-	content := "O snail\nCLimb Mount Fuji,\nBut slowly, slowly!\n\n- Kobayashi Issa"
+	content := "O snail\nClimb Mount Fuji,\nBut slowly, slowly!\n\n- Kobayashi Issa"
 	expires := 7
 
 	// Pass the data to SnippetModel.Insert(), receiving the ID of the new record back

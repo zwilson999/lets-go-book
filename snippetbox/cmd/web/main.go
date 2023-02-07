@@ -26,7 +26,7 @@ func main() {
 	addr := flag.String("addr", ":4000", "HTTP Network address")
 
 	// DSN for connecting to MySQL
-	dsn := flag.String("dsn", "web:Bramble187*@/snippetbox?parseTime=true", "MySql Data Source Name")
+	dsn := flag.String("dsn", "web:pass@/snippetbox?parseTime=true", "MySql Data Source Name")
 
 	// Parses the command line args from the user
 	// If we do not call this, it will only use the default argument set by the flag variables
