@@ -90,6 +90,7 @@ func (m *SnippetModel) Get(id int) (*Snippet, error) {
 
 // this will return the 10 most recently created snippets.
 func (m *SnippetModel) Latest() ([]*Snippet, error) {
+
 	// write the SQL statement we want to execute
 	stmt := `
 		SELECT
@@ -121,7 +122,6 @@ func (m *SnippetModel) Latest() ([]*Snippet, error) {
 
 	// use rows.Next() to iterate through the rows of the resultset
 	// this prepares the first and subsequent row to be acted upon using the rows.Scan() method
-
 	for rows.Next() {
 		s := &Snippet{}
 		// use rows.Scan() to copy the values from each field in teh row to our Snippet struct
