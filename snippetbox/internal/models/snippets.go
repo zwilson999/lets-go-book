@@ -52,6 +52,8 @@ func (m *SnippetModel) Insert(title, content string, expires int) (int, error) {
 
 // this will return a specific snippet based on its id.
 func (m *SnippetModel) Get(id int) (*Snippet, error) {
+
+	// SQL statement to get specific id from database
 	stmt := `
 		SELECT
 			id,
