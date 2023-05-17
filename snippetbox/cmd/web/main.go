@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -14,16 +15,17 @@ import (
 
 // struct to hold application-wide dependencies
 type application struct {
-	errorLog *log.Logger
-	infoLog  *log.Logger
-	snippets *models.SnippetModel
+	errorLog      *log.Logger
+	infoLog       *log.Logger
+	snippets      *models.SnippetModel
+	templateCache map[string]*template.Template
 }
 
 func main() {
 
 	// define cmd line args
 	addr := flag.String("addr", ":4000", "HTTP Network address")
-	dsn := flag.String("dsn", "web:pass@/snippetbox?parseTime=true", "MySql Data Source Name")
+	dsn := flag.String("dsn", "", "MySql Data Source Name")
 
 	// parses the command line args from the user
 	// if we do not call this, it will only use the default argument set by the flag variables
@@ -40,11 +42,18 @@ func main() {
 	}
 	defer db.Close()
 
+	// init new template cache
+	templateCache, err := newTemplateCache()
+	if err != nil {
+		errorLog.Fatal(err)
+	}
+
 	// app dependency struct
 	app := &application{
-		errorLog: errorLog,
-		infoLog:  infoLog,
-		snippets: &models.SnippetModel{DB: db},
+		errorLog:      errorLog,
+		infoLog:       infoLog,
+		snippets:      &models.SnippetModel{DB: db},
+		templateCache: templateCache,
 	}
 
 	// initialize our own http.Server struct, so it can use our own pre-defined loggers (above)

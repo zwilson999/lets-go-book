@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"html/template"
 	"net/http"
 	"strconv"
 
@@ -24,32 +23,11 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// slice to contain our template files
-	files := []string{
-		"./ui/html/base.tmpl.html",
-		"./ui/html/pages/home.tmpl.html",
-		"./ui/html/partials/nav.tmpl.html",
-	}
+	// create new templateData struct containing our default data
+	data := app.newTemplateData(r)
+	data.Snippets = snippets
 
-	// use the template.ParseFiles() func to template file into a template set. If there is an error
-	// we log the detailed error message and use the http.Error() func to send a generic 500 status
-	ts, err := template.ParseFiles(files...)
-	if err != nil {
-		app.serverError(w, err) // Generic server error
-		return
-	}
-
-	data := &templateData{
-		Snippets: snippets,
-	}
-
-	// we can then use the Execute method on the template set (ts) to write the template content
-	// as the response body. The last param to Execute() represents any dynamic data that we want to pass
-	// in, which for now will be nil
-	err = ts.ExecuteTemplate(w, "base", data)
-	if err != nil {
-		app.serverError(w, err) // generic server error
-	}
+	app.render(w, http.StatusOK, "home.tmpl.html", data)
 }
 
 // handler for viewing a snippet
@@ -73,33 +51,11 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// initialize a slice containg the paths of the view.tmpl file
-	// plus the base layout and navigation partial
-	files := []string{
-		"./ui/html/base.tmpl.html",
-		"./ui/html/partials/nav.tmpl.html",
-		"./ui/html/pages/view.tmpl.html",
-	}
+	// create new templateData struct containing our default data
+	data := app.newTemplateData(r)
+	data.Snippet = snippet
 
-	// parse the template files
-	ts, err := template.ParseFiles(files...)
-	if err != nil {
-		app.serverError(w, err)
-		return
-	}
-
-	data := &templateData{
-		Snippet: snippet,
-	}
-
-	// execute the template files
-	err = ts.ExecuteTemplate(w, "base", data)
-	if err != nil {
-		app.serverError(w, err)
-	}
-
-	// write the snippet data as a plain-text HTTP response body
-	fmt.Fprintf(w, "%+v", snippet)
+	app.render(w, http.StatusOK, "view.tmpl.html", data)
 }
 
 // handler for creating snippets
