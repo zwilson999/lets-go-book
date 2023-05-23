@@ -37,7 +37,6 @@ func newTemplateCache() (map[string]*template.Template, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	for _, page := range pages {
 
 		// extract the file name from the full filepath and assign it to the name variable

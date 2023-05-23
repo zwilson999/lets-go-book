@@ -65,7 +65,7 @@ func main() {
 
 	// listen on a port and start the server
 	// two parameters are passed in, the TCP network address (port :4000) and the servemux
-	infoLog.Printf("Starting server on %s\n", *addr)
+	infoLog.Printf("starting server on %s\n", *addr)
 	err = srv.ListenAndServe()
 	errorLog.Fatal(err)
 }
