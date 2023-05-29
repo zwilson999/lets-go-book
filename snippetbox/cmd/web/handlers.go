@@ -17,6 +17,8 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 		return          // important or else page will keep running
 	}
 
+	panic("oops! something went wrong!")
+
 	snippets, err := app.snippets.Latest()
 	if err != nil {
 		app.serverError(w, err)
