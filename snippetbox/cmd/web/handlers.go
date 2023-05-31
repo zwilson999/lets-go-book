@@ -11,14 +11,12 @@ import (
 
 // define a home handler function which writes a byte slice containing
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
+
 	// check if the current request URL path exactly matches "/". If it doesn't then we will send a 404
 	if r.URL.Path != "/" {
 		app.notFound(w) // helper for 404s
 		return          // important or else page will keep running
 	}
-
-	panic("oops! something went wrong!")
-
 	snippets, err := app.snippets.Latest()
 	if err != nil {
 		app.serverError(w, err)
