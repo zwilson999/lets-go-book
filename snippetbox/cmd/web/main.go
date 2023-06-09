@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/go-playground/form/v4"
 	"snippetbox.lets-go/internal/models"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -19,13 +20,14 @@ type application struct {
 	infoLog       *log.Logger
 	snippets      *models.SnippetModel
 	templateCache map[string]*template.Template
+	formDecoder   *form.Decoder
 }
 
 func main() {
 
 	// define cmd line args
 	addr := flag.String("addr", ":4000", "HTTP Network address")
-	dsn := flag.String("dsn", "", "MySql Data Source Name")
+	dsn := flag.String("dsn", "", "MySql Data Source Name. should be in the form web:pass@/snippetbox?parseTime=true")
 
 	// parses the command line args from the user
 	// if we do not call this, it will only use the default argument set by the flag variables
@@ -48,12 +50,16 @@ func main() {
 		errorLog.Fatal(err)
 	}
 
+	// init form decoder
+	formDecoder := form.NewDecoder()
+
 	// app dependency struct
 	app := &application{
 		errorLog:      errorLog,
 		infoLog:       infoLog,
 		snippets:      &models.SnippetModel{DB: db},
 		templateCache: templateCache,
+		formDecoder:   formDecoder,
 	}
 
 	// initialize our own http.Server struct, so it can use our own pre-defined loggers (above)
