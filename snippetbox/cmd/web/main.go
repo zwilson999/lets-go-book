@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"database/sql"
 	"flag"
 	"html/template"
@@ -73,17 +74,28 @@ func main() {
 		sessionManager: sessionManager,
 	}
 
+	// initialize a tls.Config struct to hold non-default TLS settings we want our server to use.
+	// in this case the only thing we are changing is the curve preferences value, so that the only
+	// elliptic curves with assembly implementations are used
+	tlsConfig := &tls.Config{
+		CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
+	}
+
 	// initialize our own http.Server struct, so it can use our own pre-defined loggers (above)
 	srv := &http.Server{
-		Addr:     *addr,
-		ErrorLog: errorLog,
-		Handler:  app.routes(),
+		Addr:         *addr,
+		ErrorLog:     errorLog,
+		Handler:      app.routes(),
+		TLSConfig:    tlsConfig,
+		IdleTimeout:  time.Minute,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	}
 
 	// listen on a port and start the server
 	// two parameters are passed in, the TCP network address (port :4000) and the servemux
 	infoLog.Printf("starting server on %s\n", *addr)
-	err = srv.ListenAndServe()
+	err = srv.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
 	errorLog.Fatal(err)
 }
 
