@@ -71,10 +71,10 @@ func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {
 
 // struct to represent form data and validation errors for all form fields.
 type snippetCreateForm struct {
-	Title               string `form:"title"`
-	Content             string `form:"content"`
-	Expires             int    `form:"expires"`
-	validator.Validator `form:"-"`
+	Title               string     `form:"title"`
+	Content             string     `form:"content"`
+	Expires             int        `form:"expires"`
+	validator.Validator `form:"-"` // anonymous embedding
 }
 
 // handler for creating snippets
@@ -110,6 +110,9 @@ func (app *application) snippetCreatePost(w http.ResponseWriter, r *http.Request
 		app.serverError(w, err)
 		return
 	}
+
+	// use the Put() method to add a string value and the corresponding key to the session data
+	app.sessionManager.Put(r.Context(), "flash", "snippet successfully created!")
 
 	// redirect the user to the relevant page for the snippet
 	http.Redirect(w, r, fmt.Sprintf("/snippet/view/%d", id), http.StatusSeeOther)

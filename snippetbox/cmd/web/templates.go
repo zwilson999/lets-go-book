@@ -14,6 +14,7 @@ type templateData struct {
 	Snippet     *models.Snippet
 	Snippets    []*models.Snippet
 	Form        any
+	Flash       string // for holding string data to flash to user once upon certain request
 }
 
 // func to format date in a human-readable form

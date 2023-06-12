@@ -63,6 +63,10 @@ func (app *application) render(w http.ResponseWriter, status int, page string, d
 func (app *application) newTemplateData(r *http.Request) *templateData {
 	return &templateData{
 		CurrentYear: time.Now().Year(),
+		// add flash message to template data if one exists
+		// this will be triggered to user when they create a snippet. otherwise it will be an empty string and will
+		// not be rendered in the template display
+		Flash: app.sessionManager.PopString(r.Context(), "flash"),
 	}
 }
 
