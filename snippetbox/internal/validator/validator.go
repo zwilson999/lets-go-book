@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"regexp"
 	"strings"
 	"unicode/utf8"
 )
@@ -54,4 +55,19 @@ func PermittedInt(val int, permittedVals ...int) bool {
 		}
 	}
 	return false
+}
+
+// use the regexp.MustCompile() function to parse a regular expression pattern for sanity checking the format of an email address
+// this returns a pointer to a 'compiled' regexp.Regexp type, or panics in the event of an error. Parsing this pattern
+// once at startup and storing the compiled *regexp.Regexp in a variable is more performant than re-parsing the pattern each time we need it.
+var EmailRx = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$\\/")
+
+// method returns true if a val contains at least n characters
+func MinChars(val string, n int) bool {
+	return utf8.RuneCountInString(val) >= n
+}
+
+// method returns true if a val matches a provided compiled regex
+func Matches(val string, rx *regexp.Regexp) bool {
+	return rx.MatchString(val)
 }

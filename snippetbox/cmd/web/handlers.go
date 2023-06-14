@@ -117,3 +117,58 @@ func (app *application) snippetCreatePost(w http.ResponseWriter, r *http.Request
 	// redirect the user to the relevant page for the snippet
 	http.Redirect(w, r, fmt.Sprintf("/snippet/view/%d", id), http.StatusSeeOther)
 }
+
+type userSignupForm struct {
+	Name                string `form:"name"`
+	Email               string `form:"email"`
+	Password            string `form:"password"`
+	validator.Validator `form:"-"`
+}
+
+// update the handler so it display ths signup page
+func (app *application) userSignup(w http.ResponseWriter, r *http.Request) {
+	data := app.newTemplateData(r)
+	data.Form = userSignupForm{}
+	app.render(w, http.StatusOK, "signup.tmpl.html", data)
+}
+
+func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
+	var form userSignupForm
+
+	// parse our form data into the userSignupForm struct
+	err := app.decodePostForm(r, &form)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+
+	// validate form contents
+	form.CheckField(validator.NotBlank(form.Name), "name", "this field cannot be blank")
+	form.CheckField(validator.NotBlank(form.Email), "email", "this field cannot be blank")
+	form.CheckField(validator.NotBlank(form.Password), "password", "this field cannot be blank")
+	form.CheckField(validator.Matches(form.Email, validator.EmailRx), "email", "this field must be a valid email address")
+	form.CheckField(validator.MinChars(form.Password, 8), "password", "this field must be at least 8 characters long")
+
+	// if there are any errors, redisplay the singup form along with a 422 status code
+	if !form.Valid() {
+		data := app.newTemplateData(r)
+		data.Form = form
+		app.render(w, http.StatusUnprocessableEntity, "signup.tmpl.html", data)
+		return
+	}
+
+	// otherwise send the placeholder response for now
+	fmt.Println(w, "create a new user...")
+}
+
+func (app *application) userLogin(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, "display a HTML form for logging in a user...")
+}
+
+func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, "authenticate and login the user...")
+}
+
+func (app *application) userLogoutPost(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, "logout the user...")
+}
