@@ -133,9 +133,9 @@ func (app *application) userSignup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
-	var form userSignupForm
 
 	// parse our form data into the userSignupForm struct
+	var form userSignupForm
 	err := app.decodePostForm(r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
@@ -157,16 +157,92 @@ func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// otherwise send the placeholder response for now
-	fmt.Println(w, "create a new user...")
+	// try to create a new user record in the database. if the email already exists
+	// then add an error message to the form and re-display it.
+	err = app.users.Insert(form.Name, form.Email, form.Password)
+	if err != nil {
+		if errors.Is(err, models.ErrDuplicateEmail) {
+			form.AddFieldError("email", "email address is already in use")
+
+			data := app.newTemplateData(r)
+			data.Form = form
+			app.render(w, http.StatusUnprocessableEntity, "signup.tmpl.html", data)
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
+
+	// otherwise add a confirmation flash message to the session confirming their signup worked.
+	app.sessionManager.Put(r.Context(), "flash", "your signup was successful. please log in")
+
+	// redirect user to the login page
+	http.Redirect(w, r, "/user/login", http.StatusSeeOther)
 }
 
+type userLoginForm struct {
+	Email               string `form:"email"`
+	Password            string `form:"password"`
+	validator.Validator `form:"-"`
+}
+
+// handler to display login page
 func (app *application) userLogin(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "display a HTML form for logging in a user...")
+	data := app.newTemplateData(r)
+	data.Form = userLoginForm{}
+	app.render(w, http.StatusOK, "login.tmpl.html", data)
 }
 
 func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "authenticate and login the user...")
+
+	var form userLoginForm
+	err := app.decodePostForm(r, &form)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+
+	// do some validation checks on the form. we check that both email and password are provided,
+	// and also check the format of the email address as a UX-nicety (in case the user makes a typo)
+	form.CheckField(validator.NotBlank(form.Email), "email", "this field cannot be blank")
+	form.CheckField(validator.Matches(form.Email, validator.EmailRx), "email", "this field must be a valid email address")
+	form.CheckField(validator.NotBlank(form.Password), "password", "this field cannot be blank")
+
+	if !form.Valid() {
+		data := app.newTemplateData(r)
+		data.Form = form
+		app.render(w, http.StatusUnprocessableEntity, "login.tmpl.html", data)
+		return
+	}
+
+	// check whether the credentials are valid. if they're not, add a generic non-field error message and re-display
+	// the login page
+	id, err := app.users.Authenticate(form.Email, form.Password)
+	if err != nil {
+		if errors.Is(err, models.ErrInvalidCredentials) {
+			form.AddNonFieldError("email or password is incorrect")
+
+			data := app.newTemplateData(r)
+			data.Form = form
+			app.render(w, http.StatusUnprocessableEntity, "login.tmpl.html", data)
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
+
+	// use the RenewToken() method on the current session to change the session ID.
+	// its good practice to generate a new session ID when the authentication state or privilege levels changes for the user (e.g. login
+	// and logout operations)
+	err = app.sessionManager.RenewToken(r.Context())
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	app.sessionManager.Put(r.Context(), "authenticatedUserID", id)
+	http.Redirect(w, r, "/snippet/create", http.StatusSeeOther)
+
 }
 
 func (app *application) userLogoutPost(w http.ResponseWriter, r *http.Request) {
