@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-playground/form/v4"
+	"github.com/justinas/nosurf"
 )
 
 // this serverError helper writes an error message and stack trace to errorLog
@@ -66,7 +67,9 @@ func (app *application) newTemplateData(r *http.Request) *templateData {
 		// add flash message to template data if one exists
 		// this will be triggered to user when they create a snippet. otherwise it will be an empty string and will
 		// not be rendered in the template display
-		Flash: app.sessionManager.PopString(r.Context(), "flash"),
+		Flash:           app.sessionManager.PopString(r.Context(), "flash"),
+		IsAuthenticated: app.isAuthenticated(r),
+		CSRFToken:       nosurf.Token(r),
 	}
 }
 
@@ -93,4 +96,9 @@ func (app *application) decodePostForm(r *http.Request, dst any) error {
 		return err
 	}
 	return nil
+}
+
+// return true if the current request is from authenticated user, otherwise return false
+func (app *application) isAuthenticated(r *http.Request) bool {
+	return app.sessionManager.Exists(r.Context(), "authenticatedUserID")
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/justinas/nosurf"
 )
 
 // middleware function to set security headers
@@ -48,4 +50,37 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(w, r)
 	})
+}
+
+// method to conditionally show user login page (if not authenticated)
+// and refrain from caching items in the browser cache
+func (app *application) requireAuthentication(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// if the user is not authenticated, redirect them to the login page and
+		// return from the middleware chain so that no subsequent handlers
+		// in the chain are executed.
+		if !app.isAuthenticated(r) {
+			http.Redirect(w, r, "/user/login", http.StatusSeeOther)
+			return
+		}
+
+		// otherwise set the "Cache-Control: no-store" header so that pages require
+		// authentication are not stored in the users browser cache (or other intermediary)
+		w.Header().Add("Cache-Control", "no-store")
+
+		// and call next handler in the chain
+		next.ServeHTTP(w, r)
+	})
+}
+
+// create a middleware func which uses a customized CSRF cookie with
+// the Secure, Path and HttpOnly attributes set
+func noSurf(next http.Handler) http.Handler {
+	csrfHandler := nosurf.New(next)
+	csrfHandler.SetBaseCookie(http.Cookie{
+		HttpOnly: true,
+		Path:     "/",
+		Secure:   true,
+	})
+	return csrfHandler
 }
