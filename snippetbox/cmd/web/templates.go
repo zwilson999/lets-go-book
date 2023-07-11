@@ -2,8 +2,11 @@ package main
 
 import (
 	"html/template"
+	"io/fs"
 	"path/filepath"
 	"time"
+
+	"snippetbox.lets-go/ui"
 
 	"snippetbox.lets-go/internal/models"
 )
@@ -36,32 +39,30 @@ func newTemplateCache() (map[string]*template.Template, error) {
 	// initialize a new map to act as our cache
 	cache := map[string]*template.Template{}
 
+	// use the fs.Glob() to get a slice of all the filepaths in the ui.Files embedded filesystem
+	// which match the pattern 'html/pages/*.tmpl.html'. This essentially gives us a slice of all the page templates for the app,
+	// just like before.
+
 	// use filepath.Glob() to get a slice of all filepaths that match the pattern .tmpl.html
-	pages, err := filepath.Glob("./ui/html/pages/*.tmpl.html")
+	pages, err := fs.Glob(ui.Files, "html/pages/*.tmpl.html")
 	if err != nil {
 		return nil, err
 	}
 	for _, page := range pages {
-
 		// extract the file name from the full filepath and assign it to the name variable
 		name := filepath.Base(page)
 
+		// create a slice containing the filepath patterns for the templates we want to parse
+		patterns := []string{
+			"html/base.tmpl.html",
+			"html/partials/*.tmpl.html",
+			page,
+		}
+
 		// parse the base template into a template set
-		// the FuncMap must be registered with the template set before calling ParseFiles()
 		// template.New(name) will create an empty template set with the given name
-		ts, err := template.New(name).Funcs(functions).ParseFiles("./ui/html/base.tmpl.html")
-		if err != nil {
-			return nil, err
-		}
-
-		// use ParseGlob() on the partials template set to add any templates that exist therein
-		ts, err = ts.ParseGlob("./ui/html/partials/*.tmpl.html")
-		if err != nil {
-			return nil, err
-		}
-
-		// parse the template files into a set
-		ts, err = ts.ParseFiles(page)
+		// use ParseFS() instead of ParseFiles() to parse the template files from the ui.files embedded FS
+		ts, err := template.New(name).Funcs(functions).ParseFS(ui.Files, patterns...)
 		if err != nil {
 			return nil, err
 		}
