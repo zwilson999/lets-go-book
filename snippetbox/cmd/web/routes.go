@@ -31,13 +31,16 @@ func (app *application) routes() http.Handler {
 	// just be passed directly to the file server and the correspondign static file will be served (as long as it exists)
 	router.Handler(http.MethodGet, "/static/*filepath", fileServer)
 
+	// ping method for testing our server
+	router.HandlerFunc(http.MethodGet, "/ping", ping)
+
 	// unprotected app routes use the "dynamic" middleware chain
 	dynamic := alice.New(
 		app.sessionManager.LoadAndSave,
 		noSurf,
 		app.authenticate,
 	)
-
+	// home and view
 	router.Handler(http.MethodGet, "/", dynamic.ThenFunc(app.home))
 	router.Handler(http.MethodGet, "/snippet/view/:id", dynamic.ThenFunc(app.snippetView))
 

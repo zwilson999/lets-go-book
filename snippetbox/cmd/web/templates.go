@@ -24,7 +24,12 @@ type templateData struct {
 
 // func to format date in a human-readable form
 func humanDate(t time.Time) string {
-	return t.Format("02 Jan 2006 at 15:04")
+
+	// return the empty string if time has the zero value.
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format("02 Jan 2006 at 15:04")
 }
 
 // initialize a FuncMap and store it as a global variable.
